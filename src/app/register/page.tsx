@@ -132,7 +132,20 @@ export default function Register() {
 
       if (profileError) throw profileError;
 
-      // 3. Crear membresía gratuita (asumiendo que el ID 2 es el plan gratuito)
+      // 3. Obtener el ID del plan básico/gratuito
+      const { data: planGratuito, error: planError } = await supabase
+        .from("membresia_tipos")
+        .select("id")
+        .eq("nombre", "Plan Básico")
+        .single();
+
+      if (planError)
+        throw new Error("Error al obtener plan gratuito: " + planError.message);
+
+      // ID del plan gratuito
+      const tipoPlanGratuitoId = planGratuito.id;
+
+      // 4. Crear membresía gratuita
       const oneYearFromNow = new Date();
       oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
 
@@ -140,7 +153,7 @@ export default function Register() {
         .from("membresias_usuarios")
         .insert({
           usuario_id: authData.user.id,
-          tipo_membresia_id: "2", // ID del plan gratuito en tu base de datos
+          tipo_membresia_id: tipoPlanGratuitoId,
           fecha_inicio: new Date().toISOString(),
           fecha_fin: oneYearFromNow.toISOString(),
           estado: "activa",
@@ -150,7 +163,7 @@ export default function Register() {
 
       if (membresiaError) throw membresiaError;
 
-      // 4. Actualizar la membresía activa del usuario
+      // 5. Actualizar la membresía activa del usuario
       const { error: updateUserError } = await supabase
         .from("usuarios")
         .update({ membresia_activa_id: membresia.id })
@@ -160,7 +173,7 @@ export default function Register() {
 
       // Redirigir al login
       router.push("/login?registro=exitoso");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error en el registro:", error.message);
       setErrors((prev) => ({
         ...prev,
