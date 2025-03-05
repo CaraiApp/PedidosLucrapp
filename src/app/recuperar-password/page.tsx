@@ -1,0 +1,222 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+
+export default function ResetPassword() {
+  const router = useRouter();
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [passwordStrength, setPasswordStrength] = useState<{
+    strength: string;
+    color: string;
+  }>({
+    strength: "",
+    color: "",
+  });
+
+  const validatePassword = (password: string) => {
+    let strength = 0;
+
+    if (password.length >= 8) strength += 1;
+    if (password.match(/[A-Z]/)) strength += 1;
+    if (password.match(/[a-z]/)) strength += 1;
+    if (password.match(/[0-9]/)) strength += 1;
+    if (password.match(/[^A-Za-z0-9]/)) strength += 1;
+
+    switch (strength) {
+      case 0:
+      case 1:
+        return { strength: "muy débil", color: "#dc3545" };
+      case 2:
+        return { strength: "débil", color: "#ffc107" };
+      case 3:
+        return { strength: "media", color: "#0dcaf0" };
+      case 4:
+        return { strength: "fuerte", color: "#198754" };
+      case 5:
+        return { strength: "muy fuerte", color: "#0d6efd" };
+      default:
+        return { strength: "", color: "" };
+    }
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    setPasswordStrength(validatePassword(newPassword));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // Validaciones
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      setError("La contraseña debe contener al menos una letra mayúscula");
+      return;
+    }
+
+    if (!/[a-z]/.test(password)) {
+      setError("La contraseña debe contener al menos una letra minúscula");
+      return;
+    }
+
+    if (!/[0-9]/.test(password)) {
+      setError("La contraseña debe contener al menos un número");
+      return;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      setError("La contraseña debe contener al menos un carácter especial");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password,
+      });
+
+      if (updateError) throw updateError;
+
+      // Redireccionar al login con mensaje de éxito
+      router.push("/login?reset=exitoso");
+    } catch (err: any) {
+      console.error("Error al actualizar la contraseña:", err.message);
+      setError(
+        "Ocurrió un error al actualizar la contraseña. Por favor, inténtalo de nuevo."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Restablecer contraseña
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Introduce tu nueva contraseña
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          {error && (
+            <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Nueva contraseña
+              </label>
+              <div className="mt-1">
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={password}
+                  onChange={handlePasswordChange}
+                />
+              </div>
+              {passwordStrength.strength && (
+                <p
+                  className="mt-2 text-sm"
+                  style={{ color: passwordStrength.color }}
+                >
+                  Fortaleza de la contraseña: {passwordStrength.strength}
+                </p>
+              )}
+              <div className="mt-1 text-xs text-gray-500">
+                <p>La contraseña debe contener al menos:</p>
+                <ul className="list-disc pl-5 mt-1">
+                  <li>8 caracteres</li>
+                  <li>Una letra mayúscula</li>
+                  <li>Una letra minúscula</li>
+                  <li>Un número</li>
+                  <li>Un carácter especial</li>
+                </ul>
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Confirmar nueva contraseña
+              </label>
+              <div className="mt-1">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  required
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {isLoading ? "Procesando..." : "Actualizar contraseña"}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">o</span>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <Link
+                href="/login"
+                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Volver al inicio de sesión
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
