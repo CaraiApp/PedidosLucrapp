@@ -8,9 +8,8 @@ import Link from "next/link";
 import AppLayout from "../components/AppLayout";
 
 // Importamos componentes
-import DashboardStats from "./components/DashboardStats";
-import RecentLists from "./components/RecentLists";
-
+import DashboardStats from "@/app/dashboard/components/DashboardStats";
+import RecentLists from "@/app/dashboard/components/RecentLists";
 interface User {
   id: string;
   email: string;
