@@ -1,3 +1,4 @@
+// src/app/dashboard/components/RecentLists.tsx
 import Link from "next/link";
 
 interface Lista {
@@ -47,14 +48,16 @@ export default function RecentLists({ listas }: RecentListsProps) {
               <div className="px-4 py-4 sm:px-6">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-indigo-600 truncate">
-                    Lista #{lista.id}
+                    Lista #{lista.id.slice(0, 8)}
                   </p>
                   <div className="ml-2 flex-shrink-0 flex">
                     <p
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         lista.estado === "Pendiente"
                           ? "bg-yellow-100 text-yellow-800"
-                          : "bg-green-100 text-green-800"
+                          : lista.estado === "Completada"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
                       }`}
                     >
                       {lista.estado}
@@ -92,7 +95,14 @@ export default function RecentLists({ listas }: RecentListsProps) {
                     </svg>
                     <p>
                       Creada el{" "}
-                      {new Date(lista.fecha_creacion).toLocaleDateString()}
+                      {new Date(lista.fecha_creacion).toLocaleDateString(
+                        "es-ES",
+                        {
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
+                        }
+                      )}
                     </p>
                   </div>
                 </div>

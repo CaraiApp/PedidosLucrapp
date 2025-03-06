@@ -1,30 +1,75 @@
+// src/app/dashboard/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import AppLayout from "../components/AppLayout";
 
-// Importamos componentes que usaremos más adelante
+// Importamos componentes
 import DashboardStats from "./components/DashboardStats";
 import RecentLists from "./components/RecentLists";
 
+interface User {
+  id: string;
+  email: string;
+  username: string;
+  membresia_activa?: {
+    id: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    estado: string;
+    tipo_membresia: {
+      id: string;
+      nombre: string;
+      precio: number;
+      duracion_meses: number;
+      limite_proveedores: number | null;
+      limite_articulos: number | null;
+      limite_listas: number | null;
+      descripcion: string | null;
+    };
+  };
+}
+
+interface Stats {
+  totalProveedores: number;
+  totalArticulos: number;
+  totalListas: number;
+  membresia: {
+    nombre: string;
+    limiteProveedores: number | null;
+    limiteArticulos: number | null;
+    limiteListas: number | null;
+    fechaFin: string;
+  };
+}
+
+interface Lista {
+  id: string;
+  fecha_creacion: string;
+  estado: string;
+  numero_articulos: number;
+}
+
 export default function Dashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     totalProveedores: 0,
     totalArticulos: 0,
     totalListas: 0,
     membresia: {
       nombre: "",
-      limiteProveedores: 0,
-      limiteArticulos: 0,
-      limiteListas: 0,
+      limiteProveedores: null,
+      limiteArticulos: null,
+      limiteListas: null,
       fechaFin: "",
     },
   });
+  const [listasRecientes, setListasRecientes] = useState<Lista[]>([]);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -56,10 +101,11 @@ export default function Dashboard() {
         return;
       }
 
-      setUser(userData);
+      setUser(userData as User);
 
       // Obtener estadísticas del usuario
       await loadStats(session.user.id);
+      await loadRecentLists(session.user.id);
 
       setLoading(false);
     };
@@ -106,9 +152,10 @@ export default function Dashboard() {
         totalListas: totalListas || 0,
         membresia: {
           nombre: membresia?.tipo_membresia?.nombre || "No disponible",
-          limiteProveedores: membresia?.tipo_membresia?.limite_proveedores || 0,
-          limiteArticulos: membresia?.tipo_membresia?.limite_articulos || 0,
-          limiteListas: membresia?.tipo_membresia?.limite_listas || 0,
+          limiteProveedores:
+            membresia?.tipo_membresia?.limite_proveedores || null,
+          limiteArticulos: membresia?.tipo_membresia?.limite_articulos || null,
+          limiteListas: membresia?.tipo_membresia?.limite_listas || null,
           fechaFin: membresia?.fecha_fin || "No disponible",
         },
       });
@@ -117,115 +164,61 @@ export default function Dashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
+  const loadRecentLists = async (userId: string) => {
+    try {
+      interface ListaResponse {
+        id: string;
+        fecha_creacion: string;
+        estado: string;
+        articulos_lista: { count: number }[];
+      }
+
+      // Obtener listas recientes
+      const { data, error } = await supabase
+        .from("listas_compra")
+        .select(
+          `
+          id,
+          fecha_creacion,
+          estado,
+          articulos_lista(count)
+        `
+        )
+        .eq("usuario_id", userId)
+        .order("fecha_creacion", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+
+      // Transformar los datos para el componente
+      const listasFormateadas = (data as ListaResponse[]).map((lista) => ({
+        id: lista.id,
+        fecha_creacion: lista.fecha_creacion,
+        estado: lista.estado,
+        numero_articulos:
+          lista.articulos_lista.length > 0
+            ? lista.articulos_lista[0]?.count
+            : 0,
+      }));
+
+      setListasRecientes(listasFormateadas);
+    } catch (error) {
+      console.error("Error al cargar listas recientes:", error);
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Navbar */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <span className="text-xl font-bold text-indigo-600">
-                  LucrApp
-                </span>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link
-                  href="/dashboard"
-                  className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/proveedores"
-                  className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  Proveedores
-                </Link>
-                <Link
-                  href="/articulos"
-                  className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  Artículos
-                </Link>
-                <Link
-                  href="/listas"
-                  className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  Listas de Compra
-                </Link>
-              </div>
-            </div>
-            <div className="hidden sm:ml-6 sm:flex sm:items-center">
-              <div className="ml-3 relative">
-                <div className="flex items-center">
-                  <span className="text-sm font-medium text-gray-700 mr-2">
-                    {user?.username || user?.email}
-                  </span>
-                  <button
-                    onClick={handleLogout}
-                    className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    <span className="sr-only">Cerrar sesión</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-6 w-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="-mr-2 flex items-center sm:hidden">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-                aria-expanded="false"
-              >
-                <span className="sr-only">Abrir menú</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content */}
+    <AppLayout>
       <div className="py-10">
         <header>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -238,196 +231,7 @@ export default function Dashboard() {
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
             {/* Dashboard Stats */}
             <div className="px-4 py-8 sm:px-0">
-              <div className="border-4 border-dashed border-gray-200 rounded-lg p-4 md:p-6">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                  {/* Proveedores */}
-                  <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="p-5">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                          <svg
-                            className="h-6 w-6 text-white"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                            />
-                          </svg>
-                        </div>
-                        <div className="ml-5 w-0 flex-1">
-                          <dl>
-                            <dt className="text-sm font-medium text-gray-500 truncate">
-                              Proveedores
-                            </dt>
-                            <dd>
-                              <div className="text-lg font-medium text-gray-900">
-                                {stats.totalProveedores} /{" "}
-                                {stats.membresia.limiteProveedores || "∞"}
-                              </div>
-                            </dd>
-                          </dl>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 px-5 py-3">
-                      <div className="text-sm">
-                        <Link
-                          href="/proveedores"
-                          className="font-medium text-indigo-600 hover:text-indigo-900"
-                        >
-                          Ver todos
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Artículos */}
-                  <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="p-5">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                          <svg
-                            className="h-6 w-6 text-white"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                            />
-                          </svg>
-                        </div>
-                        <div className="ml-5 w-0 flex-1">
-                          <dl>
-                            <dt className="text-sm font-medium text-gray-500 truncate">
-                              Artículos
-                            </dt>
-                            <dd>
-                              <div className="text-lg font-medium text-gray-900">
-                                {stats.totalArticulos} /{" "}
-                                {stats.membresia.limiteArticulos || "∞"}
-                              </div>
-                            </dd>
-                          </dl>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 px-5 py-3">
-                      <div className="text-sm">
-                        <Link
-                          href="/articulos"
-                          className="font-medium text-indigo-600 hover:text-indigo-900"
-                        >
-                          Ver todos
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Listas de Compra */}
-                  <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="p-5">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                          <svg
-                            className="h-6 w-6 text-white"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                            />
-                          </svg>
-                        </div>
-                        <div className="ml-5 w-0 flex-1">
-                          <dl>
-                            <dt className="text-sm font-medium text-gray-500 truncate">
-                              Listas de Compra
-                            </dt>
-                            <dd>
-                              <div className="text-lg font-medium text-gray-900">
-                                {stats.totalListas} /{" "}
-                                {stats.membresia.limiteListas || "∞"}
-                              </div>
-                            </dd>
-                          </dl>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 px-5 py-3">
-                      <div className="text-sm">
-                        <Link
-                          href="/listas"
-                          className="font-medium text-indigo-600 hover:text-indigo-900"
-                        >
-                          Ver todas
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Membresía */}
-                  <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="p-5">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                          <svg
-                            className="h-6 w-6 text-white"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                        </div>
-                        <div className="ml-5 w-0 flex-1">
-                          <dl>
-                            <dt className="text-sm font-medium text-gray-500 truncate">
-                              Plan Actual
-                            </dt>
-                            <dd>
-                              <div className="text-lg font-medium text-gray-900">
-                                {stats.membresia.nombre}
-                              </div>
-                            </dd>
-                          </dl>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 px-5 py-3">
-                      <div className="text-sm">
-                        <Link
-                          href="/membresias"
-                          className="font-medium text-indigo-600 hover:text-indigo-900"
-                        >
-                          Actualizar plan
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <DashboardStats stats={stats} />
             </div>
 
             {/* Recent Lists */}
@@ -435,26 +239,7 @@ export default function Dashboard() {
               <h2 className="text-lg font-medium text-gray-900 mb-4">
                 Listas recientes
               </h2>
-              <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                <ul className="divide-y divide-gray-200">
-                  {/* Renderizaremos listas aquí más adelante */}
-                  <li>
-                    <div className="px-4 py-4 sm:px-6">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-indigo-600 truncate">
-                          No hay listas de compra recientes
-                        </p>
-                      </div>
-                      <div className="mt-2 sm:flex sm:justify-between">
-                        <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                          Crea tu primera lista para empezar a gestionar tus
-                          compras
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                </ul>
-              </div>
+              <RecentLists listas={listasRecientes} />
             </div>
 
             {/* Quick Actions */}
@@ -578,6 +363,6 @@ export default function Dashboard() {
           </div>
         </main>
       </div>
-    </div>
+    </AppLayout>
   );
 }

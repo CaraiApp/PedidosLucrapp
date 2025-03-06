@@ -1,3 +1,4 @@
+// src/app/dashboard/components/DashboardStats.tsx
 import Link from "next/link";
 
 interface Stats {
@@ -6,9 +7,9 @@ interface Stats {
   totalListas: number;
   membresia: {
     nombre: string;
-    limiteProveedores: number;
-    limiteArticulos: number;
-    limiteListas: number;
+    limiteProveedores: number | null;
+    limiteArticulos: number | null;
+    limiteListas: number | null;
     fechaFin: string;
   };
 }
