@@ -5,6 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
+interface SupabaseError {
+  message: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+}
+
 export default function Login() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,15 +88,16 @@ export default function Login() {
 
       // Redireccionar al dashboard
       router.push("/dashboard");
-    } catch (error: any) {
-      console.error("Error de inicio de sesión:", error.message);
+    } catch (error: unknown) {
+      const supabaseError = error as SupabaseError;
+      console.error("Error de inicio de sesión:", supabaseError.message);
       let errorMessage = "Ocurrió un error durante el inicio de sesión";
 
       // Traducir mensajes de error comunes de Supabase
-      if (error.message.includes("Invalid login credentials")) {
+      if (supabaseError.message.includes("Invalid login credentials")) {
         errorMessage =
           "Credenciales inválidas. Por favor, verifique su correo y contraseña.";
-      } else if (error.message.includes("Email not confirmed")) {
+      } else if (supabaseError.message.includes("Email not confirmed")) {
         errorMessage =
           "Por favor, confirme su correo electrónico antes de iniciar sesión.";
       }

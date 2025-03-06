@@ -21,6 +21,13 @@ interface Articulo {
   };
 }
 
+interface SupabaseError {
+  message: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+}
+
 export default function ArticulosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -65,8 +72,9 @@ export default function ArticulosPage() {
         if (error) throw error;
 
         setArticulos(data || []);
-      } catch (err: any) {
-        console.error("Error al cargar artículos:", err.message);
+      } catch (err: unknown) {
+        const error = err as SupabaseError;
+        console.error("Error al cargar artículos:", error.message);
         setError(
           "No se pudieron cargar los artículos. Por favor, intenta nuevamente."
         );
@@ -104,8 +112,9 @@ export default function ArticulosPage() {
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
-    } catch (err: any) {
-      console.error("Error al eliminar artículo:", err.message);
+    } catch (err: unknown) {
+      const error = err as SupabaseError;
+      console.error("Error al eliminar artículo:", error.message);
       setError(
         "No se pudo eliminar el artículo. Por favor, intenta nuevamente."
       );

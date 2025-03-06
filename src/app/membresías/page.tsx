@@ -25,6 +25,13 @@ interface MembresiaActual {
   estado: string;
 }
 
+interface SupabaseError {
+  message: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+}
+
 export default function MembresiasPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -72,7 +79,8 @@ export default function MembresiasPage() {
         setTiposMembresia(membresiasData || []);
         setMembresiaActual(usuarioData?.membresia_activa || null);
       } catch (err: unknown) {
-        console.error("Error al cargar datos:", err.message);
+        const error = err as SupabaseError;
+        console.error("Error al cargar datos:", error.message);
         setError(
           "No se pudieron cargar los datos. Por favor, intenta nuevamente."
         );
@@ -145,7 +153,8 @@ export default function MembresiasPage() {
       // Recargar la página para ver los cambios
       window.location.reload();
     } catch (err: unknown) {
-      console.error("Error al actualizar membresía:", err.message);
+      const error = err as SupabaseError;
+      console.error("Error al actualizar membresía:", error.message);
       setError(
         "No se pudo actualizar la membresía. Por favor, intenta nuevamente."
       );

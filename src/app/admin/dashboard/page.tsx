@@ -17,6 +17,13 @@ interface TipoMembresia {
   created_at: string;
 }
 
+interface SupabaseError {
+  message: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+}
+
 export default function GestionMembresias() {
   const [tiposMembresia, setTiposMembresia] = useState<TipoMembresia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,8 +46,8 @@ export default function GestionMembresias() {
 
       setTiposMembresia(data || []);
     } catch (err: unknown) {
-      const error = err as { message: string };
-      console.error("Error al cargar tipos de membresía:", err.message);
+      const error = err as SupabaseError;
+      console.error("Error al cargar tipos de membresía:", error.message);
       setError(
         "No se pudieron cargar los tipos de membresía. Por favor, intenta nuevamente."
       );
@@ -93,8 +100,9 @@ export default function GestionMembresias() {
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
-    } catch (err: any) {
-      console.error("Error al eliminar tipo de membresía:", err.message);
+    } catch (err: unknown) {
+      const error = err as SupabaseError;
+      console.error("Error al eliminar tipo de membresía:", error.message);
       setError(
         "No se pudo eliminar el tipo de membresía. Por favor, intenta nuevamente."
       );

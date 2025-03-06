@@ -16,7 +16,7 @@ export default function AdminAccess() {
     setIsLoading(true);
 
     // Verificar la contraseña
-    if (password === "Global01") {
+    if (password === "Global01.") {
       // Almacenar en sessionStorage para mantener el acceso
       sessionStorage.setItem("adminAccess", "granted");
       router.push("/admin/dashboard");
