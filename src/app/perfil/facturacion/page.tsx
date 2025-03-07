@@ -36,25 +36,21 @@ export default function FacturacionPage() {
     if (user) {
       const loadFacturacionData = async () => {
         try {
+          // Obtener el ID de auth directamente
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          const authUserId = authUser?.id;
+          
           // Obtener datos de facturación desde la tabla datos_facturacion
           const { data: facturacionData, error } = await supabase
             .from('datos_facturacion')
             .select('*')
-            .eq('usuario_id', user.id)
+            .eq('usuario_id', authUserId)
             .maybeSingle();
             
-          if (error) {
-            console.error('Error al cargar datos de facturación:', error);
-          }
-          
-          console.log("Datos de facturación obtenidos:", facturacionData);
+          // Si hay error, continuamos con datos por defecto
           
           // Combinar datos del usuario con datos de facturación
           // Priorizar los datos de la tabla datos_facturacion
-          console.log("Datos de facturación completos:", {
-            facturacionData,
-            "provincia": facturacionData?.provincia, // Mostrar específicamente el campo provincia
-          });
           
           setFacturaData({
             // Si tenemos datos en la tabla datos_facturacion, los usamos
@@ -73,7 +69,7 @@ export default function FacturacionPage() {
             telefono: facturacionData?.telefono || user.telefono || "",
           });
         } catch (err) {
-          console.error('Error al cargar datos de facturación:', err);
+          // Error al cargar datos, continuaremos con valores por defecto
         }
       };
       
@@ -83,12 +79,10 @@ export default function FacturacionPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    console.log(`Campo ${name} cambiado a: ${value}`);
-    setFacturaData((prev) => {
-      const updated = { ...prev, [name]: value };
-      console.log(`Nuevo estado del formulario:`, updated);
-      return updated;
-    });
+    setFacturaData((prev) => ({
+      ...prev, 
+      [name]: value
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,28 +90,33 @@ export default function FacturacionPage() {
     setSaving(true);
     setMensaje(null);
 
-    // Crear un log detallado para depuración
+    // Simplificar logs para producción
     const logError = (etapa: string, error: any) => {
-      console.error(`[ERROR - ${etapa}]`, error);
-      console.error(`[ERROR DETAILS - ${etapa}]`, {
-        mensaje: error?.message || 'Sin mensaje',
-        detalles: error?.details || 'Sin detalles',
-        hint: error?.hint || 'Sin hint',
-        código: error?.code || 'Sin código'
-      });
+      console.error(`Error en ${etapa}:`, error);
     };
 
     const logInfo = (etapa: string, data: any) => {
-      console.log(`[INFO - ${etapa}]`, data);
+      // Descomentar para debugging si es necesario
+      // console.log(`[INFO - ${etapa}]`, data);
     };
+    
+    // Inicio de envío del formulario
 
     try {
       logInfo('INICIO', "Iniciando proceso de guardar datos de facturación");
       logInfo('DATOS', facturaData);
       
+      // Obtener el ID de auth directamente primero
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const authUserId = authUser?.id;
+      
+      logInfo('USUARIO_AUTH', { 
+        authId: authUserId
+      });
+      
       // Actualizar campo empresa en la tabla usuarios
       // Comprobar que tenemos un usuario autenticado
-      if (!user || !user.id) {
+      if (!user || !user.id || !authUserId) {
         logError('AUTENTICACIÓN', new Error("Usuario no autenticado"));
         throw new Error("Usuario no autenticado");
       }
@@ -166,18 +165,18 @@ export default function FacturacionPage() {
         
         // Creamos o actualizamos un objeto en la tabla datos_facturacion
         try {
-          // Preparamos los datos a guardar
+          // Preparamos los datos a guardar - asegurando que ningún valor es undefined
           const facturacionData = {
-            usuario_id: user?.id,
-            nombre_empresa: facturaData.razon_social,
-            cif: facturaData.cif,
-            direccion: facturaData.direccion_fiscal,
-            codigo_postal: facturaData.codigo_postal,
-            ciudad: facturaData.ciudad,
-            provincia: facturaData.provincia,
-            pais: facturaData.pais,
-            telefono: facturaData.telefono,
-            email_facturacion: user?.email
+            usuario_id: authUserId, // authUserId está definido arriba al inicio del handleSubmit
+            nombre_empresa: facturaData.razon_social || '',
+            cif: facturaData.cif || '',
+            direccion: facturaData.direccion_fiscal || '',
+            codigo_postal: facturaData.codigo_postal || '',
+            ciudad: facturaData.ciudad || '',
+            provincia: facturaData.provincia || '',
+            pais: facturaData.pais || 'España',
+            telefono: facturaData.telefono || '',
+            email_facturacion: user.email || ''
           };
           
           // Log detallado para verificar los datos
@@ -226,11 +225,18 @@ export default function FacturacionPage() {
           }
           
           // Intentamos primero buscar un registro existente
-          logInfo('BUSCAR_REGISTRO', { usuario_id: user.id });
+          // authUserId ya está definido arriba en el handleSubmit
+          
+          logInfo('USUARIO_AUTH_BUSQUEDA', { 
+            authId: authUserId, 
+            userId: user.id 
+          });
+          
+          logInfo('BUSCAR_REGISTRO', { usuario_id: authUserId });
           const { data: existingData, error: checkError } = await supabase
             .from('datos_facturacion')
             .select('*')
-            .eq('usuario_id', user.id)
+            .eq('usuario_id', authUserId)
             .maybeSingle();
             
           if (checkError) {
@@ -251,48 +257,71 @@ export default function FacturacionPage() {
             // Si existe, actualizamos
             logInfo('ACTUALIZAR_REGISTRO', { id: existingData.id });
             try {
-              const { data, error } = await supabase
-                .from('datos_facturacion')
-                .update({
-                  ...facturacionData,
-                  // Asegurarnos de que el campo provincia se incluye explícitamente
-                  provincia: facturaData.provincia
-                })
-                .eq('id', existingData.id)
-                .select();
-                
-              if (error) {
-                logError('ACTUALIZAR_REGISTRO', error);
-                throw error;
+              // Primero verificamos que el id existe
+              if (!existingData.id) {
+                throw new Error('ID de registro no disponible');
               }
               
-              logInfo('ACTUALIZAR_REGISTRO_ÉXITO', data || 'Actualizado correctamente');
+              // Intentamos actualizar
+              try {
+                const { data, error } = await supabase
+                  .from('datos_facturacion')
+                  .update(facturacionData)
+                  .eq('id', existingData.id)
+                  .select();
+                
+                logInfo('UPDATE_OPERATION', {
+                  id: existingData.id,
+                  resultado: error ? 'Error' : 'Éxito'
+                });
+                  
+                if (error) {
+                  logError('ACTUALIZAR_REGISTRO', error);
+                  throw error;
+                }
+                
+                logInfo('ACTUALIZAR_REGISTRO_ÉXITO', data || 'Actualizado correctamente');
+              } catch (supabaseError) {
+                logError('OPERACION_SUPABASE', supabaseError);
+                throw supabaseError;
+              }
             } catch (updateError) {
               logError('ACTUALIZAR_REGISTRO_EXCEPCION', updateError);
-              throw new Error("No se pudo actualizar el registro de facturación");
+              throw new Error(`No se pudo actualizar el registro de facturación: ${updateError.message || 'Error desconocido'}`);
             }
           } else {
             // Si no existe, lo insertamos
             logInfo('CREAR_REGISTRO', 'Intentando crear nuevo registro');
             try {
-              const { data, error } = await supabase
-                .from('datos_facturacion')
-                .insert([{
-                  ...facturacionData,
-                  // Asegurarnos de que el campo provincia se incluye explícitamente
-                  provincia: facturaData.provincia
-                }])
-                .select();
-                
-              if (error) {
-                logError('CREAR_REGISTRO', error);
-                throw error;
+              // Verificamos que tenemos usuario_id
+              if (!facturacionData.usuario_id) {
+                throw new Error('ID de usuario no disponible para inserción');
               }
               
-              logInfo('CREAR_REGISTRO_ÉXITO', data || 'Creado correctamente');
+              // Intentamos insertar
+              try {
+                const { data, error } = await supabase
+                  .from('datos_facturacion')
+                  .insert([facturacionData])
+                  .select();
+                
+                logInfo('INSERT_OPERATION', {
+                  resultado: error ? 'Error' : 'Éxito'
+                });
+                  
+                if (error) {
+                  logError('CREAR_REGISTRO', error);
+                  throw error;
+                }
+                
+                logInfo('CREAR_REGISTRO_ÉXITO', data || 'Creado correctamente');
+              } catch (supabaseError) {
+                logError('OPERACION_SUPABASE_INSERCION', supabaseError);
+                throw supabaseError;
+              }
             } catch (insertError) {
               logError('CREAR_REGISTRO_EXCEPCION', insertError);
-              throw new Error("No se pudo crear el registro de facturación");
+              throw new Error(`No se pudo crear el registro de facturación: ${insertError.message || 'Error desconocido'}`);
             }
           }
           
@@ -302,7 +331,7 @@ export default function FacturacionPage() {
             const { data: refreshData, error: refreshError } = await supabase
               .from('datos_facturacion')
               .select('*')
-              .eq('usuario_id', user.id)
+              .eq('usuario_id', authUserId)
               .maybeSingle();
               
             if (refreshError) {
@@ -332,14 +361,16 @@ export default function FacturacionPage() {
                   const updated = {
                     ...prev,
                     razon_social: refreshData.nombre_empresa || prev.razon_social,
+                    nombre_empresa: refreshData.nombre_empresa || prev.nombre_empresa,
                     cif: refreshData.cif || prev.cif,
                     direccion_fiscal: refreshData.direccion || prev.direccion_fiscal,
+                    direccion: refreshData.direccion || prev.direccion,
                     codigo_postal: refreshData.codigo_postal || prev.codigo_postal,
                     ciudad: refreshData.ciudad || prev.ciudad,
-                    // Especial atención a esta línea para evitar que se pierda
-                    provincia: refreshData.provincia !== undefined ? refreshData.provincia : prev.provincia,
+                    provincia: refreshData.provincia || prev.provincia,
                     pais: refreshData.pais || prev.pais,
-                    telefono: refreshData.telefono || prev.telefono
+                    telefono: refreshData.telefono || prev.telefono,
+                    email_facturacion: refreshData.email_facturacion || prev.email_facturacion
                   };
                   
                   logInfo('ESTADO_ACTUALIZADO', updated);
@@ -357,9 +388,54 @@ export default function FacturacionPage() {
             logError('RECARGAR_DATOS_EXCEPCION', refreshErr);
           }
         } catch (facturacionError: any) {
-          logError('ERROR_FACTURACION', facturacionError);
+          logError('ERROR_FACTURACION', facturacionError || new Error('Error desconocido en facturación'));
+          logError('ERROR_FACTURACION_DETALLE', facturacionError);
           
-          if (facturacionError.message && facturacionError.message.includes('does not exist')) {
+          // Verificar si el error está relacionado con la referencia a auth.users
+          const isReferenceError = facturacionError?.message?.includes('violates foreign key constraint') ||
+                                  facturacionError?.message?.includes('violates not-null constraint');
+                                  
+          if (isReferenceError) {
+            logInfo('METODO_ALTERNATIVO', 'Intentando método alternativo de actualización');
+            
+            try {
+              // Método alternativo: actualizar directamente en la tabla usuarios
+              // sin intentar crear un registro separado en datos_facturacion
+              const usuarioUpdate = {
+                empresa: facturaData.razon_social,
+                cif: facturaData.cif,
+                direccion_fiscal: facturaData.direccion_fiscal,
+                codigo_postal: facturaData.codigo_postal,
+                ciudad: facturaData.ciudad,
+                provincia: facturaData.provincia,
+                pais: facturaData.pais,
+                telefono: facturaData.telefono
+              };
+              
+              const { error: updateError } = await supabase
+                .from('usuarios')
+                .update(usuarioUpdate)
+                .eq('id', user.id);
+                
+              if (updateError) {
+                logError('METODO_ALTERNATIVO', updateError);
+                throw updateError;
+              }
+              
+              setMensaje({
+                texto: "Información actualizada correctamente (método alternativo)",
+                tipo: "exito"
+              });
+              
+              // No lanzamos el error, ya lo hemos manejado
+              return;
+            } catch (altError) {
+              logError('METODO_ALTERNATIVO_ERROR', altError);
+              // Continuamos con el error original
+            }
+          }
+          
+          if (facturacionError && facturacionError.message && facturacionError.message.includes('does not exist')) {
             setMensaje({
               texto: "La tabla datos_facturacion no existe. Por favor, crea esta tabla en la base de datos.",
               tipo: "error"
@@ -400,13 +476,12 @@ export default function FacturacionPage() {
           tipo: "exito",
         });
         
-        // Limpiar el mensaje después de 3 segundos y recargar la página
+        // Limpiar el mensaje después de 3 segundos
         setTimeout(() => {
           setMensaje(null);
-          // Recargar la página para mostrar los datos actualizados
-          logInfo('RECARGAR_PAGINA', 'Recargando página');
-          window.location.reload();
-        }, 1500);
+          // No recargamos la página para evitar perder los datos
+          logInfo('PROCESO_COMPLETADO', 'Guardado correctamente, no es necesario recargar');
+        }, 3000);
       } else {
         logError('ERROR_FINAL', new Error("Error al actualizar datos de facturación"));
         throw new Error("Error al actualizar datos de facturación");
@@ -557,14 +632,16 @@ export default function FacturacionPage() {
               </div>
             </div>
             
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                isLoading={saving}
-                disabled={saving}
-              >
-                Guardar datos de facturación
-              </Button>
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  isLoading={saving}
+                  disabled={saving}
+                >
+                  Guardar datos de facturación
+                </Button>
+              </div>
             </div>
           </form>
         </Card>
