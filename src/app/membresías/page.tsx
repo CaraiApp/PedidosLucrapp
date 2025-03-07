@@ -77,7 +77,16 @@ export default function MembresiasPage() {
         if (usuarioError) throw usuarioError;
 
         setTiposMembresia(membresiasData || []);
-        setMembresiaActual(usuarioData?.membresia_activa || null);
+        // Check if data exists and reshape it to match MembresiaActual type if needed
+        if (usuarioData?.membresia_activa) {
+          const membresiaActiva = Array.isArray(usuarioData.membresia_activa) 
+            ? usuarioData.membresia_activa[0] 
+            : usuarioData.membresia_activa;
+            
+          setMembresiaActual(membresiaActiva);
+        } else {
+          setMembresiaActual(null);
+        }
       } catch (err: unknown) {
         const error = err as SupabaseError;
         console.error("Error al cargar datos:", error.message);

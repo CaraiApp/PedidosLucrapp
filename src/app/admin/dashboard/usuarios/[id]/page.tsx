@@ -1,9 +1,8 @@
 // src/app/admin/dashboard/usuarios/[id]/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Usuario, Mensaje } from "@/types";
 import Alert from "@/components/ui/Alert";
@@ -14,7 +13,6 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function PerfilUsuario() {
   const { isAdmin } = useAuth();
-  const router = useRouter();
   const params = useParams();
   const userId = params.id as string;
 
@@ -22,21 +20,7 @@ export default function PerfilUsuario() {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
 
-  useEffect(() => {
-    // Verificar si el usuario es administrador
-    if (!isAdmin()) {
-      setMensaje({
-        texto: "No tienes permisos para acceder a esta página",
-        tipo: "error"
-      });
-      return;
-    }
-    
-    // Cargar datos del usuario
-    cargarDatosUsuario();
-  }, [isAdmin, userId]);
-
-  const cargarDatosUsuario = async () => {
+  const cargarDatosUsuario = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -67,7 +51,21 @@ export default function PerfilUsuario() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+  
+  useEffect(() => {
+    // Verificar si el usuario es administrador
+    if (!isAdmin()) {
+      setMensaje({
+        texto: "No tienes permisos para acceder a esta página",
+        tipo: "error"
+      });
+      return;
+    }
+    
+    // Cargar datos del usuario
+    cargarDatosUsuario();
+  }, [isAdmin, userId, cargarDatosUsuario]);
 
   const asignarMembresiaGratuita = async () => {
     try {
@@ -247,7 +245,7 @@ export default function PerfilUsuario() {
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Precio</h3>
                   <p className="mt-1 text-sm text-gray-900">
-                    {usuario.membresia_activa.tipo_membresia.precio}€ / {usuario.membresia_activa.tipo_membresia.periodo}
+                    {usuario.membresia_activa.tipo_membresia.precio}€ / {usuario.membresia_activa.tipo_membresia.duracion_meses} meses
                   </p>
                 </div>
               </div>

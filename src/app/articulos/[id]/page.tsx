@@ -6,7 +6,6 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import AppLayout from "../../components/AppLayout";
-import { Unidad } from "@/types";
 
 interface Articulo {
   id: string;
@@ -79,8 +78,8 @@ export default function DetalleArticuloPage() {
         }
 
         setArticulo(articuloData);
-      } catch (err: any) {
-        console.error("Error al cargar datos:", err.message);
+      } catch (err: unknown) {
+        console.error("Error al cargar datos:", err instanceof Error ? err.message : String(err));
         setError(
           "No se pudieron cargar los datos. Por favor, intenta nuevamente."
         );

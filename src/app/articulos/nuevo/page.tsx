@@ -1,7 +1,7 @@
 // src/app/articulos/nuevo/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -14,7 +14,8 @@ interface Proveedor {
   nombre: string;
 }
 
-export default function NuevoArticuloPage() {
+// Content component that uses searchParams
+function NuevoArticuloContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const proveedorIdParam = searchParams.get("proveedor");
@@ -82,8 +83,9 @@ export default function NuevoArticuloPage() {
 
         setProveedores(proveedoresResponse.data || []);
         setUnidades(unidadesResponse.data || []);
-      } catch (err: any) {
-        console.error("Error al verificar límites:", err.message);
+      } catch (err: unknown) {
+        const error = err as { message?: string };
+        console.error("Error al verificar límites:", error.message || String(err));
         setError(
           "Error al cargar datos. Por favor, intenta nuevamente."
         );
@@ -159,8 +161,9 @@ export default function NuevoArticuloPage() {
 
       // Redireccionar a la lista de artículos
       router.push("/articulos");
-    } catch (err: any) {
-      console.error("Error al crear artículo:", err.message);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      console.error("Error al crear artículo:", error.message || String(err));
       setError("No se pudo crear el artículo. Por favor, intenta nuevamente.");
     } finally {
       setGuardando(false);
@@ -326,8 +329,6 @@ export default function NuevoArticuloPage() {
                   />
                 </div>
 
-                {/* Campos de stock ocultos */}
-
                 <div className="col-span-2">
                   <label
                     htmlFor="descripcion"
@@ -360,5 +361,14 @@ export default function NuevoArticuloPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function NuevoArticuloPage() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <NuevoArticuloContent />
+    </Suspense>
   );
 }

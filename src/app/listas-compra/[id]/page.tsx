@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import AppLayout from "../../components/AppLayout";
-import { use } from "react";
 
 interface ItemListaDetalle {
   id: string;
@@ -30,6 +29,8 @@ interface ItemListaDetalle {
 interface ListaDetalles {
   id: string;
   nombre: string;
+  nombre_lista?: string;
+  title?: string;
   fecha_creacion: string;
   estado: 'borrador' | 'enviada' | 'completada' | 'cancelada';
   notas?: string;
@@ -46,11 +47,10 @@ interface ItemsPorProveedor {
   total: number;
 }
 
-export default function DetalleListaCompraPage({ params }: { params: { id: string } }) {
+export default function DetalleListaCompraPage() {
   const router = useRouter();
-  // Usar React.use para desenvolver los parámetros
-  const resolvedParams = use(params);
-  const id = resolvedParams.id;
+  const params = useParams();
+  const id = params.id as string;
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [lista, setLista] = useState<ListaDetalles | null>(null);

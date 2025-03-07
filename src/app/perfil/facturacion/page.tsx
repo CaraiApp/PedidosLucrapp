@@ -285,7 +285,8 @@ export default function FacturacionPage() {
                 logError('OPERACION_SUPABASE', supabaseError);
                 throw supabaseError;
               }
-            } catch (updateError) {
+            } catch (error) {
+              const updateError = error as { message?: string };
               logError('ACTUALIZAR_REGISTRO_EXCEPCION', updateError);
               throw new Error(`No se pudo actualizar el registro de facturación: ${updateError.message || 'Error desconocido'}`);
             }
@@ -319,7 +320,8 @@ export default function FacturacionPage() {
                 logError('OPERACION_SUPABASE_INSERCION', supabaseError);
                 throw supabaseError;
               }
-            } catch (insertError) {
+            } catch (error) {
+              const insertError = error as { message?: string };
               logError('CREAR_REGISTRO_EXCEPCION', insertError);
               throw new Error(`No se pudo crear el registro de facturación: ${insertError.message || 'Error desconocido'}`);
             }

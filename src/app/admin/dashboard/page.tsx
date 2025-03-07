@@ -73,7 +73,7 @@ export default function AdminDashboard() {
       if (membresiasError) throw membresiasError;
       
       // Calcular ingresos (para demo, usamos un valor estimado)
-      const ingresosMensuales = membresiasActivas * 19.99;
+      const ingresosMensuales = (membresiasActivas || 0) * 19.99;
       
       setStats({
         totalUsuarios: totalUsuarios || 0,

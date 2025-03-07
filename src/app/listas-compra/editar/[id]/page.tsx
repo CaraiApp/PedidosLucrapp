@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import AppLayout from "../../../components/AppLayout";
-import { ListaCompra, ItemListaCompra, Articulo, Proveedor, Unidad } from "@/types";
-import { use } from "react";
+import { ListaCompra, Articulo, Proveedor } from "@/types";
 
 interface ArticuloConCantidad extends Articulo {
   cantidad: number;
@@ -18,11 +17,10 @@ interface ProveedorConArticulos extends Proveedor {
   articulos: ArticuloConCantidad[];
 }
 
-export default function EditarListaCompraPage({ params }: { params: { id: string } }) {
+export default function EditarListaCompraPage() {
   const router = useRouter();
-  // Usar React.use para desenvolver los parámetros
-  const resolvedParams = use(params);
-  const id = resolvedParams.id;
+  const params = useParams();
+  const id = params.id as string;
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [nombre, setNombre] = useState("");

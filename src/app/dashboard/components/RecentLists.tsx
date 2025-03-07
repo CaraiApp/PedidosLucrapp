@@ -1,18 +1,17 @@
 // src/app/dashboard/components/RecentLists.tsx
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { ListaCompra } from "@/types";
 
 // Verificación de props para evitar errores
-function validateLista(lista: any): boolean {
+function validateLista(lista: unknown): boolean {
   return !!(
     lista &&
     typeof lista === 'object' &&
-    lista.id &&
-    lista.estado &&
-    lista.fecha_creacion
+    'id' in lista &&
+    'estado' in lista &&
+    'fecha_creacion' in lista
   );
 }
 

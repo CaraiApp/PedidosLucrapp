@@ -384,26 +384,7 @@ export default function PerfilPage() {
                           onChange={handlePasswordChange}
                           required
                           fullWidth
-                          helpText={
-                            <>
-                              <p>La contraseña debe contener al menos:</p>
-                              <ul className="list-disc pl-5 mt-1">
-                                <li>8 caracteres</li>
-                                <li>Una letra mayúscula</li>
-                                <li>Una letra minúscula</li>
-                                <li>Un número</li>
-                                <li>Un carácter especial</li>
-                              </ul>
-                              {passwordStrength.strength && (
-                                <p
-                                  className="mt-2 font-medium"
-                                  style={{ color: passwordStrength.color }}
-                                >
-                                  Fortaleza: {passwordStrength.strength}
-                                </p>
-                              )}
-                            </>
-                          }
+                          helpText="La contraseña debe contener al menos 8 caracteres, una letra mayúscula, una letra minúscula, un número y un carácter especial."
                         />
                       </div>
 

@@ -12,6 +12,18 @@ export interface Usuario {
   created_at: string;
   membresia_activa?: MembresiasUsuario;
   membresia_activa_id?: string;
+  // Campos de facturación
+  razon_social?: string;
+  cif?: string;
+  direccion_fiscal?: string;
+  codigo_postal?: string;
+  ciudad?: string;
+  provincia?: string;
+  pais?: string;
+  // Campos adicionales que pueden estar en profileData
+  direccion?: string;
+  nombre_empresa?: string;
+  email_facturacion?: string;
 }
 
 export interface DatosFacturacion {
@@ -165,3 +177,6 @@ export interface Mensaje {
   texto: string;
   tipo: 'exito' | 'error' | 'info' | 'advertencia';
 }
+
+// Declaration for next-pwa
+declare module 'next-pwa';

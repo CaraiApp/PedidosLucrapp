@@ -120,16 +120,20 @@ export default function Dashboard() {
         
         listasFormateadas.push({
           id: lista.id,
+          usuario_id: userId,
           nombre: lista.title || "Sin nombre",
           fecha_creacion: lista.fecha_creacion || new Date().toISOString(),
           estado: (lista.estado || 'borrador') as 'borrador' | 'enviada' | 'completada' | 'cancelada',
           proveedor_id: lista.proveedor_id,
-          proveedor: lista.proveedor && lista.proveedor.nombre ? { 
-            id: lista.proveedor_id || "", 
-            nombre: lista.proveedor.nombre,
-            usuario_id: userId,
-            created_at: ""
-          } : undefined,
+          proveedor: lista.proveedor && 
+            typeof lista.proveedor === 'object' && 
+            'nombre' in lista.proveedor && 
+            lista.proveedor.nombre ? { 
+              id: lista.proveedor_id || "", 
+              nombre: lista.proveedor.nombre as string,
+              usuario_id: userId,
+              created_at: ""
+            } : undefined,
           items: [],
           numero_articulos: count || 0
         });

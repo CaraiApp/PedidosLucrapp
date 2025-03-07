@@ -173,8 +173,9 @@ export default function Register() {
 
       // Redirigir al login
       router.push("/login?registro=exitoso");
-    } catch (error: unknown) {
-      console.error("Error en el registro:", error.message);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      console.error("Error en el registro:", error.message || String(err));
       setErrors((prev) => ({
         ...prev,
         general: error.message || "Ocurrió un error durante el registro",
