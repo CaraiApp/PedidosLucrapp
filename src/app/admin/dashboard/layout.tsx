@@ -4,19 +4,26 @@
 import { ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import useAdminAuth from "../middleware";
+import { AdminAuthGuard } from "../AuthGuard";
+import { supabase } from "@/lib/supabase";
+import Button from "@/components/ui/Button";
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  useAdminAuth();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Remover el acceso de admin
     sessionStorage.removeItem("adminAccess");
+    
+    // Opcional: cerrar la sesión de Supabase
+    await supabase.auth.signOut();
+    
+    // Redirigir al login de admin
     router.push("/admin");
   };
 
@@ -103,38 +110,153 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     },
   ];
 
+  // Componente interno para enlaces de navegación
+  const NavLink = ({ item, mobile = false }: { item: typeof navigation[0], mobile?: boolean }) => {
+    return (
+      <Link
+        href={item.href}
+        className={`text-gray-300 hover:bg-gray-700 hover:text-white group flex items-center px-2 py-2 ${mobile ? 'text-base' : 'text-sm'} font-medium rounded-md`}
+        onClick={mobile ? () => setIsMobileMenuOpen(false) : undefined}
+      >
+        <div className={`${mobile ? 'mr-4' : 'mr-3'} text-gray-400 group-hover:text-gray-300`}>
+          {item.icon}
+        </div>
+        {item.name}
+      </Link>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="h-screen flex overflow-hidden bg-gray-100">
-        {/* Sidebar para escritorio */}
-        <div className="hidden md:flex md:flex-shrink-0">
-          <div className="flex flex-col w-64">
-            <div className="flex flex-col h-0 flex-1 bg-gray-800">
-              <div className="flex items-center h-16 flex-shrink-0 px-4 bg-gray-900">
-                <h1 className="text-xl font-bold text-white">LucrApp Admin</h1>
+    <AdminAuthGuard>
+      <div className="min-h-screen bg-gray-100">
+        <div className="h-screen flex overflow-hidden bg-gray-100">
+          {/* Sidebar para escritorio */}
+          <div className="hidden md:flex md:flex-shrink-0">
+            <div className="flex flex-col w-64">
+              <div className="flex flex-col h-0 flex-1 bg-gray-800">
+                <div className="flex items-center h-16 flex-shrink-0 px-4 bg-gray-900">
+                  <h1 className="text-xl font-bold text-white">LucrApp Admin</h1>
+                </div>
+                <div className="flex-1 flex flex-col overflow-y-auto">
+                  <nav className="flex-1 px-2 py-4 space-y-1">
+                    {navigation.map((item) => (
+                      <NavLink key={item.name} item={item} />
+                    ))}
+                  </nav>
+                </div>
+                <div className="flex-shrink-0 flex bg-gray-700 p-4">
+                  <div className="flex items-center w-full">
+                    <div className="w-full">
+                      <Button 
+                        variant="ghost" 
+                        onClick={handleLogout}
+                        className="w-full flex justify-between text-gray-300 hover:text-white hover:bg-gray-600"
+                      >
+                        <span>Cerrar sesión</span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                          />
+                        </svg>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 flex flex-col overflow-y-auto">
-                <nav className="flex-1 px-2 py-4 space-y-1">
-                  {navigation.map((item) => (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className="text-gray-300 hover:bg-gray-700 hover:text-white group flex items-center px-2 py-2 text-sm font-medium rounded-md"
-                    >
-                      <div className="mr-3 text-gray-400 group-hover:text-gray-300">
-                        {item.icon}
-                      </div>
-                      {item.name}
-                    </Link>
-                  ))}
-                </nav>
-              </div>
-              <div className="flex-shrink-0 flex bg-gray-700 p-4">
-                <div className="flex items-center w-full">
-                  <div className="w-full">
+            </div>
+          </div>
+
+          {/* Contenido principal */}
+          <div className="flex flex-col w-0 flex-1 overflow-hidden">
+            {/* Barra superior para móvil */}
+            <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900"
+              >
+                <span className="sr-only">Abrir sidebar</span>
+                <svg
+                  className="h-6 w-6"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Menú móvil */}
+            {isMobileMenuOpen && (
+              <div className="md:hidden fixed inset-0 z-40 flex">
+                {/* Overlay */}
+                <div
+                  className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                ></div>
+
+                {/* Menú móvil */}
+                <div className="relative flex-1 flex flex-col max-w-xs w-full bg-gray-800 transition ease-in-out duration-300 transform">
+                  <div className="absolute top-0 right-0 -mr-12 pt-2">
                     <button
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                    >
+                      <span className="sr-only">Cerrar sidebar</span>
+                      <svg
+                        className="h-6 w-6 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Contenido del menú móvil */}
+                  <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+                    <div className="flex-shrink-0 flex items-center px-4">
+                      <h1 className="text-xl font-bold text-white">
+                        LucrApp Admin
+                      </h1>
+                    </div>
+                    <nav className="mt-5 px-2 space-y-1">
+                      {navigation.map((item) => (
+                        <NavLink key={item.name} item={item} mobile />
+                      ))}
+                    </nav>
+                  </div>
+                  
+                  {/* Botón de cerrar sesión móvil */}
+                  <div className="flex-shrink-0 flex bg-gray-700 p-4">
+                    <Button 
+                      variant="ghost" 
                       onClick={handleLogout}
-                      className="w-full flex justify-between text-sm font-medium text-gray-300 hover:text-white"
+                      className="w-full flex justify-between text-gray-300 hover:text-white hover:bg-gray-600"
                     >
                       <span>Cerrar sesión</span>
                       <svg
@@ -151,132 +273,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                           d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                         />
                       </svg>
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
+            )}
 
-        {/* Contenido principal */}
-        <div className="flex flex-col w-0 flex-1 overflow-hidden">
-          {/* Barra superior para móvil */}
-          <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900"
-            >
-              <span className="sr-only">Abrir sidebar</span>
-              <svg
-                className="h-6 w-6"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Menú móvil */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden fixed inset-0 z-40 flex">
-              <div
-                className="fixed inset-0 bg-gray-600 bg-opacity-75"
-                onClick={() => setIsMobileMenuOpen(false)}
-              ></div>
-
-              <div className="relative flex-1 flex flex-col max-w-xs w-full bg-gray-800">
-                <div className="absolute top-0 right-0 -mr-12 pt-2">
-                  <button
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-                  >
-                    <span className="sr-only">Cerrar sidebar</span>
-                    <svg
-                      className="h-6 w-6 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
-                  <div className="flex-shrink-0 flex items-center px-4">
-                    <h1 className="text-xl font-bold text-white">
-                      LucrApp Admin
-                    </h1>
-                  </div>
-                  <nav className="mt-5 px-2 space-y-1">
-                    {navigation.map((item) => (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        className="text-gray-300 hover:bg-gray-700 hover:text-white group flex items-center px-2 py-2 text-base font-medium rounded-md"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <div className="mr-4 text-gray-400 group-hover:text-gray-300">
-                          {item.icon}
-                        </div>
-                        {item.name}
-                      </Link>
-                    ))}
-                  </nav>
-                </div>
-                <div className="flex-shrink-0 flex bg-gray-700 p-4">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex justify-between text-sm font-medium text-gray-300 hover:text-white"
-                  >
-                    <span>Cerrar sesión</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                  </button>
+            {/* Contenido principal */}
+            <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
+              <div className="py-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+                  {children}
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Contenido */}
-          <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
-            <div className="py-6">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                {children}
-              </div>
-            </div>
-          </main>
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </AdminAuthGuard>
   );
 }

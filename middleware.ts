@@ -32,6 +32,7 @@ export async function middleware(req: NextRequest) {
     (req.nextUrl.pathname.startsWith("/login") ||
       req.nextUrl.pathname.startsWith("/register"))
   ) {
+    // Agregamos un pequeño retraso para asegurar que la sesión esté completamente cargada
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 

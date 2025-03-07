@@ -1,38 +1,29 @@
-// src/app/perfil/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import AppLayout from "../components/AppLayout";
-
-interface Usuario {
-  id: string;
-  email: string;
-  username: string;
-  nombre?: string;
-  apellidos?: string;
-  telefono?: string;
-  empresa?: string;
-  created_at: string;
-}
+import Alert from "@/components/ui/Alert";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import Loading from "@/components/ui/Loading";
+import { useAuth } from "@/hooks/useAuth";
+import { Mensaje } from "@/types";
+import { supabase } from "@/lib/supabase";
 
 export default function PerfilPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const { user, isLoading, error, updateProfile, signOut } = useAuth();
   const [actualizando, setActualizando] = useState(false);
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [formData, setFormData] = useState({
-    username: "",
-    nombre: "",
-    apellidos: "",
-    telefono: "",
-    empresa: "",
+    username: user?.username || "",
+    nombre: user?.nombre || "",
+    apellidos: user?.apellidos || "",
+    telefono: user?.telefono || "",
+    empresa: user?.empresa || "",
   });
-  const [mensaje, setMensaje] = useState<{
-    texto: string;
-    tipo: "exito" | "error";
-  } | null>(null);
+  const [mensaje, setMensaje] = useState<Mensaje | null>(null);
   const [cambiandoPassword, setCambiandoPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
     passwordActual: "",
@@ -48,49 +39,18 @@ export default function PerfilPage() {
     color: "",
   });
 
+  // Actualizar el formData cuando se carga el usuario
   useEffect(() => {
-    const cargarUsuario = async () => {
-      try {
-        setLoading(true);
-
-        // Verificar sesión
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
-          router.push("/login");
-          return;
-        }
-
-        // Cargar datos del usuario
-        const { data: userData, error: userError } = await supabase
-          .from("usuarios")
-          .select("*")
-          .eq("id", sessionData.session.user.id)
-          .single();
-
-        if (userError) throw userError;
-
-        setUsuario(userData);
-        setFormData({
-          username: userData.username || "",
-          nombre: userData.nombre || "",
-          apellidos: userData.apellidos || "",
-          telefono: userData.telefono || "",
-          empresa: userData.empresa || "",
-        });
-      } catch (err: any) {
-        console.error("Error al cargar datos de usuario:", err.message);
-        setMensaje({
-          texto:
-            "No se pudieron cargar tus datos. Por favor, intenta nuevamente.",
-          tipo: "error",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    cargarUsuario();
-  }, [router]);
+    if (user) {
+      setFormData({
+        username: user.username || "",
+        nombre: user.nombre || "",
+        apellidos: user.apellidos || "",
+        telefono: user.telefono || "",
+        empresa: user.empresa || "",
+      });
+    }
+  }, [user]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -99,59 +59,61 @@ export default function PerfilPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setActualizando(true);
+    setMensaje(null);
 
     try {
-      setActualizando(true);
-
-      // Verificar sesión
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        router.push("/login");
-        return;
+      console.log("Actualizando perfil con datos:", formData);
+      
+      // Comprobar que tenemos un usuario autenticado
+      if (!user || !user.id) {
+        throw new Error("No hay un usuario autenticado");
       }
 
-      // Actualizar datos del usuario
-      const { error: updateError } = await supabase
-        .from("usuarios")
-        .update({
-          username: formData.username,
-          nombre: formData.nombre || null,
-          apellidos: formData.apellidos || null,
-          telefono: formData.telefono || null,
-          empresa: formData.empresa || null,
-        })
-        .eq("id", sessionData.session.user.id);
-
-      if (updateError) throw updateError;
-
+      try {
+        // Ahora actualizamos todos los campos ya que existen en la tabla
+        console.log("Actualizando todos los campos del perfil");
+        const { data, error } = await supabase
+          .from('usuarios')
+          .update({
+            username: formData.username,
+            nombre: formData.nombre || null,
+            apellidos: formData.apellidos || null,
+            telefono: formData.telefono || null,
+            empresa: formData.empresa || null,
+          })
+          .eq('id', user.id)
+          .select();
+          
+        if (error) {
+          console.error("Error al actualizar usuarios:", error);
+          throw error;
+        }
+        
+        console.log("Datos actualizados:", data);
+        
+        // Recargar la página después de mostrar el mensaje de éxito
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch (updateError) {
+        console.error("Error en la actualización:", updateError);
+        throw new Error("Error al actualizar el perfil de usuario");
+      }
+      
       setMensaje({
         texto: "Perfil actualizado correctamente",
         tipo: "exito",
       });
-
-      // Actualizar el estado del usuario con los nuevos datos
-      setUsuario((prev) =>
-        prev
-          ? {
-              ...prev,
-              username: formData.username,
-              nombre: formData.nombre || null,
-              apellidos: formData.apellidos || null,
-              telefono: formData.telefono || null,
-              empresa: formData.empresa || null,
-            }
-          : null
-      );
-
+      
       // Limpiar el mensaje después de 3 segundos
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
-    } catch (err: any) {
-      console.error("Error al actualizar perfil:", err.message);
+    } catch (err) {
+      console.error("Error al actualizar perfil:", err);
       setMensaje({
-        texto:
-          "No se pudo actualizar el perfil. Por favor, intenta nuevamente.",
+        texto: "No se pudo actualizar el perfil. Por favor, intenta nuevamente.",
         tipo: "error",
       });
     } finally {
@@ -241,7 +203,7 @@ export default function PerfilPage() {
 
       // Primero intentamos iniciar sesión con la contraseña actual para verificarla
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: usuario?.email || "",
+        email: user?.email || "",
         password: passwordData.passwordActual,
       });
 
@@ -277,8 +239,8 @@ export default function PerfilPage() {
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
-    } catch (err: any) {
-      console.error("Error al actualizar contraseña:", err.message);
+    } catch (err) {
+      console.error("Error al actualizar contraseña:", err);
       setPasswordError(
         "No se pudo actualizar la contraseña. Por favor, intenta nuevamente."
       );
@@ -287,271 +249,199 @@ export default function PerfilPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <AppLayout>
       <div className="py-8">
         <h1 className="text-2xl font-bold mb-6">Mi Perfil</h1>
 
-        {mensaje && (
-          <div
-            className={`p-4 mb-6 rounded-md ${
-              mensaje.tipo === "exito"
-                ? "bg-green-100 text-green-700"
-                : "bg-red-100 text-red-700"
-            }`}
-          >
-            {mensaje.texto}
-          </div>
-        )}
+        <Alert mensaje={mensaje} onClose={() => setMensaje(null)} />
 
-        {loading ? (
-          <div className="flex justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-          </div>
+        {isLoading ? (
+          <Loading text="Cargando perfil..." />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2">
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-lg font-semibold mb-4">
-                  Información Personal
-                </h2>
+              <Card title="Información Personal">
                 <form onSubmit={handleSubmit}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label
-                        htmlFor="username"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Nombre de usuario
-                      </label>
-                      <input
-                        type="text"
-                        id="username"
-                        name="username"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        value={formData.username}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="email"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Correo electrónico
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        className="w-full px-3 py-2 border border-gray-300 bg-gray-100 rounded-md"
-                        value={usuario?.email || ""}
-                        disabled
-                      />
-                      <p className="mt-1 text-sm text-gray-500">
-                        El correo electrónico no se puede cambiar
-                      </p>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="nombre"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Nombre
-                      </label>
-                      <input
-                        type="text"
-                        id="nombre"
-                        name="nombre"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        value={formData.nombre}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="apellidos"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Apellidos
-                      </label>
-                      <input
-                        type="text"
-                        id="apellidos"
-                        name="apellidos"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        value={formData.apellidos}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="telefono"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Teléfono
-                      </label>
-                      <input
-                        type="tel"
-                        id="telefono"
-                        name="telefono"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        value={formData.telefono}
-                        onChange={handleInputChange}
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="empresa"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Empresa
-                      </label>
-                      <input
-                        type="text"
-                        id="empresa"
-                        name="empresa"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        value={formData.empresa}
-                        onChange={handleInputChange}
-                      />
-                    </div>
+                    <Input
+                      label="Nombre de usuario"
+                      id="username"
+                      name="username"
+                      value={formData.username}
+                      onChange={handleInputChange}
+                      required
+                      fullWidth
+                    />
+                    
+                    <Input
+                      label="Correo electrónico"
+                      id="email"
+                      type="email"
+                      value={user?.email || ""}
+                      disabled
+                      helpText="El correo electrónico no se puede cambiar"
+                      fullWidth
+                    />
+                    
+                    <Input
+                      label="Nombre"
+                      id="nombre"
+                      name="nombre"
+                      value={formData.nombre}
+                      onChange={handleInputChange}
+                      fullWidth
+                    />
+                    
+                    <Input
+                      label="Apellidos"
+                      id="apellidos"
+                      name="apellidos"
+                      value={formData.apellidos}
+                      onChange={handleInputChange}
+                      fullWidth
+                    />
+                    
+                    <Input
+                      label="Teléfono"
+                      id="telefono"
+                      name="telefono"
+                      type="tel"
+                      value={formData.telefono}
+                      onChange={handleInputChange}
+                      fullWidth
+                    />
+                    
+                    <Input
+                      label="Empresa"
+                      id="empresa"
+                      name="empresa"
+                      value={formData.empresa}
+                      onChange={handleInputChange}
+                      fullWidth
+                    />
                   </div>
 
                   <div className="mt-6">
-                    <button
+                    <Button
                       type="submit"
+                      isLoading={actualizando}
                       disabled={actualizando}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                     >
-                      {actualizando ? "Guardando..." : "Guardar Cambios"}
-                    </button>
+                      Guardar Cambios
+                    </Button>
                   </div>
                 </form>
-              </div>
+              </Card>
 
               {/* Cambio de contraseña */}
-              <div className="bg-white p-6 rounded-lg shadow-md mt-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold">Seguridad</h2>
-                  <button
+              <Card
+                title="Seguridad"
+                className="mt-6"
+                titleClassName="flex justify-between items-center"
+                footer={
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => setCambiandoPassword(!cambiandoPassword)}
-                    className="text-indigo-600 hover:text-indigo-800"
                   >
                     {cambiandoPassword ? "Cancelar" : "Cambiar contraseña"}
-                  </button>
-                </div>
-
+                  </Button>
+                }
+              >
                 {cambiandoPassword && (
                   <form onSubmit={handlePasswordSubmit}>
                     {passwordError && (
-                      <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                        {passwordError}
-                      </div>
+                      <Alert
+                        mensaje={{ texto: passwordError, tipo: "error" }}
+                        onClose={() => setPasswordError(null)}
+                      />
                     )}
 
-                    <div className="mb-4">
-                      <label
-                        htmlFor="passwordActual"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Contraseña actual
-                      </label>
-                      <input
-                        type="password"
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        label="Contraseña actual"
                         id="passwordActual"
                         name="passwordActual"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        type="password"
                         value={passwordData.passwordActual}
                         onChange={handlePasswordChange}
                         required
+                        fullWidth
                       />
-                    </div>
 
-                    <div className="mb-4">
-                      <label
-                        htmlFor="passwordNuevo"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Nueva contraseña
-                      </label>
-                      <input
-                        type="password"
-                        id="passwordNuevo"
-                        name="passwordNuevo"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        value={passwordData.passwordNuevo}
-                        onChange={handlePasswordChange}
-                        required
-                      />
-                      {passwordStrength.strength && (
-                        <p
-                          className="mt-2 text-sm"
-                          style={{ color: passwordStrength.color }}
-                        >
-                          Fortaleza de la contraseña:{" "}
-                          {passwordStrength.strength}
-                        </p>
-                      )}
-                      <div className="mt-1 text-xs text-gray-500">
-                        <p>La contraseña debe contener al menos:</p>
-                        <ul className="list-disc pl-5 mt-1">
-                          <li>8 caracteres</li>
-                          <li>Una letra mayúscula</li>
-                          <li>Una letra minúscula</li>
-                          <li>Un número</li>
-                          <li>Un carácter especial</li>
-                        </ul>
+                      <div className="md:col-span-2">
+                        <Input
+                          label="Nueva contraseña"
+                          id="passwordNuevo"
+                          name="passwordNuevo"
+                          type="password"
+                          value={passwordData.passwordNuevo}
+                          onChange={handlePasswordChange}
+                          required
+                          fullWidth
+                          helpText={
+                            <>
+                              <p>La contraseña debe contener al menos:</p>
+                              <ul className="list-disc pl-5 mt-1">
+                                <li>8 caracteres</li>
+                                <li>Una letra mayúscula</li>
+                                <li>Una letra minúscula</li>
+                                <li>Un número</li>
+                                <li>Un carácter especial</li>
+                              </ul>
+                              {passwordStrength.strength && (
+                                <p
+                                  className="mt-2 font-medium"
+                                  style={{ color: passwordStrength.color }}
+                                >
+                                  Fortaleza: {passwordStrength.strength}
+                                </p>
+                              )}
+                            </>
+                          }
+                        />
                       </div>
-                    </div>
 
-                    <div className="mb-4">
-                      <label
-                        htmlFor="confirmPassword"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Confirmar nueva contraseña
-                      </label>
-                      <input
-                        type="password"
+                      <Input
+                        label="Confirmar nueva contraseña"
                         id="confirmPassword"
                         name="confirmPassword"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        type="password"
                         value={passwordData.confirmPassword}
                         onChange={handlePasswordChange}
                         required
+                        fullWidth
                       />
                     </div>
 
-                    <div>
-                      <button
+                    <div className="mt-4">
+                      <Button
                         type="submit"
+                        isLoading={actualizando}
                         disabled={actualizando}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                       >
-                        {actualizando
-                          ? "Actualizando..."
-                          : "Actualizar Contraseña"}
-                      </button>
+                        Actualizar Contraseña
+                      </Button>
                     </div>
                   </form>
                 )}
-              </div>
+              </Card>
             </div>
 
             {/* Información de la cuenta */}
             <div>
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-lg font-semibold mb-4">
-                  Información de la Cuenta
-                </h2>
+              <Card title="Información de la Cuenta">
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm text-gray-500">Miembro desde</p>
-                    <p>
-                      {usuario?.created_at
-                        ? new Date(usuario.created_at).toLocaleDateString(
+                    <p className="text-sm font-medium text-gray-500">Miembro desde</p>
+                    <p className="text-lg">
+                      {user?.created_at
+                        ? new Date(user.created_at).toLocaleDateString(
                             "es-ES",
                             {
                               day: "numeric",
@@ -564,33 +454,57 @@ export default function PerfilPage() {
                   </div>
 
                   <div className="pt-3 border-t border-gray-200">
-                    <p className="text-sm text-gray-500">Plan actual</p>
-                    <p>
-                      <a
-                        href="/membresias"
-                        className="text-indigo-600 hover:text-indigo-800"
-                      >
-                        Ver detalles de membresía
-                      </a>
-                    </p>
+                    <p className="text-sm font-medium text-gray-500">Gestión de cuenta</p>
+                    <div className="mt-2 space-y-2">
+                      <Button href="/perfil/membresia" variant="outline" size="sm" className="w-full">
+                        Mi Membresía
+                      </Button>
+                      <Button href="/perfil/facturacion" variant="outline" size="sm" className="w-full">
+                        Datos de Facturación
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="pt-3 border-t border-gray-200">
-                    <p className="text-sm text-gray-500">Acciones de cuenta</p>
+                    <p className="text-sm font-medium text-gray-500">Estado de membresía</p>
                     <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          supabase.auth.signOut().then(() => router.push("/"))
-                        }
-                        className="text-red-600 hover:text-red-800"
+                      {user?.membresia_activa && user.membresia_activa.tipo_membresia ? (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-green-600">
+                            {user.membresia_activa.tipo_membresia.nombre || 'Plan Básico'} (Activa)
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Hasta: {new Date(user.membresia_activa.fecha_fin).toLocaleDateString('es-ES')}
+                          </span>
+                          <Button href="/membresias" variant="outline" size="sm" className="mt-2">
+                            Cambiar plan
+                          </Button>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-sm font-medium text-yellow-600">Plan gratuito</span>
+                          <Button href="/membresias" variant="primary" size="sm" className="mt-2 w-full">
+                            Actualizar a Premium
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-200">
+                    <p className="text-sm font-medium text-gray-500">Acciones de cuenta</p>
+                    <div className="mt-2">
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={handleSignOut}
                       >
                         Cerrar sesión
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
-              </div>
+              </Card>
             </div>
           </div>
         )}

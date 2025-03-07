@@ -55,12 +55,15 @@ export default function Login() {
     setIsLoading(true);
 
     try {
+      console.log("Iniciando sesión con:", formData.email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
 
       if (error) throw error;
+
+      console.log("Sesión iniciada correctamente:", data.user.id);
 
       // Verificar si el usuario existe en nuestra tabla de usuarios
       const { data: userData, error: userError } = await supabase
@@ -72,6 +75,7 @@ export default function Login() {
       if (userError) {
         // Si el usuario no existe en nuestra tabla, lo creamos
         if (userError.code === "PGRST116") {
+          console.log("Creando nuevo usuario en tabla usuarios");
           const { error: insertError } = await supabase
             .from("usuarios")
             .insert({
@@ -86,8 +90,11 @@ export default function Login() {
         }
       }
 
-      // Redireccionar al dashboard
-      router.push("/dashboard");
+      console.log("Redirigiendo al dashboard...");
+      // Redireccionar al dashboard con un pequeño retraso
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 500);
     } catch (error: unknown) {
       const supabaseError = error as SupabaseError;
       console.error("Error de inicio de sesión:", supabaseError.message);

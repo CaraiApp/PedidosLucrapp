@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LucrApp - Aplicación de Gestión de Pedidos
 
-## Getting Started
+LucrApp es una aplicación web para gestionar proveedores, artículos y listas de compras con un sistema de membresías.
 
-First, run the development server:
+## Configuración de Stripe para Membresías
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Para que el sistema de pago de membresías funcione correctamente, sigue estos pasos:
+
+1. Crea una cuenta en [Stripe](https://stripe.com) si aún no tienes una.
+
+2. Añade las siguientes variables de entorno en tu archivo `.env.local`:
+
+```
+STRIPE_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. En tu panel de Stripe, crea productos para cada plan de membresía:
+   - Crea un producto por cada tipo de membresía (ej. Básico, Pro, Premium)
+   - Configura precios recurrentes (subscriptions) para cada producto
+   - Copia el ID del precio (price_...) y actualiza la tabla `membresia_tipos` en Supabase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+4. Para configurar el webhook de Stripe:
+   - Usa [Stripe CLI](https://stripe.com/docs/stripe-cli) para pruebas locales
+   - Ejecuta: `stripe listen --forward-to localhost:3000/api/webhook`
+   - Añade el webhook secret generado a las variables de entorno
+   - En producción, configura el webhook en el Dashboard de Stripe apuntando a `https://tu-dominio.com/api/webhook`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+5. Actualiza la tabla de tipos de membresías en Supabase:
+   ```sql
+   ALTER TABLE membresia_tipos 
+   ADD COLUMN stripe_price_id TEXT;
+   
+   -- Actualiza cada fila con el ID de precio correspondiente
+   UPDATE membresia_tipos 
+   SET stripe_price_id = 'price_...' 
+   WHERE id = '...';
+   ```
 
-## Learn More
+6. Actualiza la tabla de membresías de usuarios:
+   ```sql
+   ALTER TABLE membresias_usuarios 
+   ADD COLUMN stripe_subscription_id TEXT;
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+## Desarrollo
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Instalar dependencias
+npm install
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Ejecutar servidor de desarrollo
+npm run dev
 
-## Deploy on Vercel
+# Construir para producción
+npm run build
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Iniciar servidor de producción
+npm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Estructura del Proyecto
+
+- `/src/app` - Rutas y páginas de Next.js
+- `/src/components` - Componentes reutilizables
+- `/src/hooks` - Custom hooks
+- `/src/lib` - Utilidades y configuración
+- `/src/types` - Definiciones de tipos TypeScript
+
+## Tecnologías
+
+- [Next.js](https://nextjs.org) - Framework de React
+- [Tailwind CSS](https://tailwindcss.com) - Framework de CSS
+- [Supabase](https://supabase.io) - Backend y autenticación
+- [Stripe](https://stripe.com) - Procesamiento de pagos

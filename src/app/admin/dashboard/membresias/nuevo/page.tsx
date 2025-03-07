@@ -3,8 +3,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import Alert from "@/components/ui/Alert";
+import { Mensaje } from "@/types";
 
 interface FormData {
   nombre: string;
@@ -26,13 +30,6 @@ interface MembresiaData {
   descripcion: string | null;
 }
 
-interface SupabaseError {
-  message: string;
-  details: string;
-  hint: string;
-  code: string;
-}
-
 export default function NuevaMembresiaPage() {
   const router = useRouter();
   const [formData, setFormData] = useState<FormData>({
@@ -45,7 +42,7 @@ export default function NuevaMembresiaPage() {
     descripcion: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [mensaje, setMensaje] = useState<Mensaje | null>(null);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -61,7 +58,10 @@ export default function NuevaMembresiaPage() {
 
     // Validaciones básicas
     if (!formData.nombre.trim()) {
-      setError("El nombre del plan es obligatorio");
+      setMensaje({
+        texto: "El nombre del plan es obligatorio",
+        tipo: "error"
+      });
       return;
     }
 
@@ -70,13 +70,16 @@ export default function NuevaMembresiaPage() {
       isNaN(Number(formData.precio)) ||
       Number(formData.precio) < 0
     ) {
-      setError("Por favor ingrese un precio válido");
+      setMensaje({
+        texto: "Por favor ingrese un precio válido",
+        tipo: "error"
+      });
       return;
     }
 
     try {
       setLoading(true);
-      setError(null);
+      setMensaje(null);
 
       // Preparar los datos para insertar
       const membresiaData: MembresiaData = {
@@ -104,12 +107,12 @@ export default function NuevaMembresiaPage() {
 
       // Redireccionar a la lista de membresías
       router.push("/admin/dashboard/membresias");
-    } catch (err: unknown) {
-      const supabaseError = err as SupabaseError;
-      console.error("Error al crear plan de membresía:", supabaseError.message);
-      setError(
-        "No se pudo crear el plan de membresía. Por favor, intenta nuevamente."
-      );
+    } catch (err) {
+      console.error("Error al crear plan de membresía:", err);
+      setMensaje({
+        texto: "No se pudo crear el plan de membresía. Por favor, intenta nuevamente.",
+        tipo: "error"
+      });
     } finally {
       setLoading(false);
     }
@@ -121,58 +124,43 @@ export default function NuevaMembresiaPage() {
         <h1 className="text-2xl font-semibold text-gray-900">
           Crear Nuevo Plan de Membresía
         </h1>
-        <Link
-          href="/admin/dashboard/membresias"
-          className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+        <Button
+          variant="secondary"
+          onClick={() => router.push("/admin/dashboard/membresias")}
         >
           Cancelar
-        </Link>
+        </Button>
       </div>
 
-      {error && (
-        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      <Alert mensaje={mensaje} onClose={() => setMensaje(null)} />
 
-      <div className="bg-white shadow rounded-lg p-6">
+      <Card>
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="col-span-2">
-              <label
-                htmlFor="nombre"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Nombre del Plan <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
+              <Input
                 id="nombre"
                 name="nombre"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                label="Nombre del Plan"
                 value={formData.nombre}
                 onChange={handleInputChange}
                 required
+                fullWidth
               />
             </div>
 
             <div>
-              <label
-                htmlFor="precio"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Precio (€) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
+              <Input
                 id="precio"
                 name="precio"
+                label="Precio (€)"
+                type="number"
                 min="0"
                 step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 value={formData.precio}
                 onChange={handleInputChange}
                 required
+                fullWidth
               />
             </div>
 
@@ -200,62 +188,47 @@ export default function NuevaMembresiaPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="limite_proveedores"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Límite de Proveedores
-              </label>
-              <input
-                type="number"
+              <Input
                 id="limite_proveedores"
                 name="limite_proveedores"
+                label="Límite de Proveedores"
+                type="number"
                 min="0"
                 step="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 value={formData.limite_proveedores}
                 onChange={handleInputChange}
-                placeholder="Dejar en blanco para ilimitado"
+                helpText="Dejar en blanco para ilimitado"
+                fullWidth
               />
             </div>
 
             <div>
-              <label
-                htmlFor="limite_articulos"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Límite de Artículos
-              </label>
-              <input
-                type="number"
+              <Input
                 id="limite_articulos"
                 name="limite_articulos"
+                label="Límite de Artículos"
+                type="number"
                 min="0"
                 step="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 value={formData.limite_articulos}
                 onChange={handleInputChange}
-                placeholder="Dejar en blanco para ilimitado"
+                helpText="Dejar en blanco para ilimitado"
+                fullWidth
               />
             </div>
 
             <div>
-              <label
-                htmlFor="limite_listas"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Límite de Listas de Compra
-              </label>
-              <input
-                type="number"
+              <Input
                 id="limite_listas"
                 name="limite_listas"
+                label="Límite de Listas de Compra"
+                type="number"
                 min="0"
                 step="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 value={formData.limite_listas}
                 onChange={handleInputChange}
-                placeholder="Dejar en blanco para ilimitado"
+                helpText="Dejar en blanco para ilimitado"
+                fullWidth
               />
             </div>
 
@@ -279,42 +252,16 @@ export default function NuevaMembresiaPage() {
           </div>
 
           <div className="mt-6 flex justify-end">
-            <button
+            <Button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+              isLoading={loading}
               disabled={loading}
             >
-              {loading ? (
-                <span className="flex items-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Guardando...
-                </span>
-              ) : (
-                "Guardar Plan"
-              )}
-            </button>
+              Guardar Plan
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

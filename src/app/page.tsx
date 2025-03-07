@@ -4,6 +4,51 @@ import Image from "next/image";
 export default function Home() {
   return (
     <div className="bg-white">
+      {/* Header */}
+      <header className="relative bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center">
+              <Link href="/" className="flex items-center">
+                <span className="text-2xl font-bold text-indigo-600">LucrApp</span>
+              </Link>
+            </div>
+            <div className="hidden md:block">
+              <div className="ml-10 flex items-center space-x-4">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                >
+                  Iniciar sesión
+                </Link>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Registrarse
+                </Link>
+              </div>
+            </div>
+            <div className="md:hidden">
+              <div className="flex items-center space-x-2">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                >
+                  Iniciar sesión
+                </Link>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Registrarse
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-700">
         <div className="mx-auto max-w-7xl py-24 px-6 sm:py-32 lg:px-8">
@@ -15,16 +60,22 @@ export default function Home() {
               LucrApp simplifica el proceso de realizar pedidos a tus
               proveedores, ahorrandote tiempo y reduciendo errores.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
+            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-6">
               <Link
                 href="/register"
-                className="rounded-md bg-white px-6 py-3 text-lg font-semibold text-indigo-600 shadow-sm hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="w-full sm:w-auto rounded-md bg-white px-6 py-3 text-lg font-semibold text-indigo-600 shadow-sm hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
-                Comenzar gratis
+                Registrarse gratis
+              </Link>
+              <Link
+                href="/login"
+                className="w-full sm:w-auto rounded-md bg-indigo-500 px-6 py-3 text-lg font-semibold text-white shadow-sm hover:bg-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+              >
+                Iniciar sesión
               </Link>
               <Link
                 href="#features"
-                className="text-lg font-semibold leading-6 text-white"
+                className="text-lg font-semibold leading-6 text-white hidden sm:inline-block"
               >
                 Ver características <span aria-hidden="true">→</span>
               </Link>

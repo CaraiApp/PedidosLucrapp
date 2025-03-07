@@ -18,7 +18,7 @@ export async function verificarLimiteAlcanzado(
       .from("usuarios")
       .select(
         `
-        membresia_activa: membresias_usuarios!inner(
+        membresia_activa: membresias_usuarios!left(
           tipo_membresia: membresia_tipos(*)
         )
       `
@@ -26,9 +26,56 @@ export async function verificarLimiteAlcanzado(
       .eq("id", userId)
       .single();
 
-    if (userError || !userData) {
+    if (userError) {
       console.error("Error al obtener información de membresía:", userError);
       return true; // En caso de error, restringir por seguridad
+    }
+
+    // Si no tiene membresía activa, asignar valores por defecto de la membresía gratuita
+    if (!userData || !userData.membresia_activa || !userData.membresia_activa.tipo_membresia) {
+      console.log("Usuario sin membresía activa. Usando límites por defecto.");
+      
+      // Límites por defecto para la membresía gratuita
+      let limiteDefecto = 0;
+      switch (tipo) {
+        case "proveedores":
+          limiteDefecto = 5;
+          break;
+        case "articulos":
+          limiteDefecto = 50;
+          break;
+        case "listas":
+          limiteDefecto = 10;
+          break;
+      }
+      
+      // Contar recursos actuales
+      let tabla: string;
+      switch (tipo) {
+        case "proveedores":
+          tabla = "proveedores";
+          break;
+        case "articulos":
+          tabla = "articulos";
+          break;
+        case "listas":
+          tabla = "listas_compra";
+          break;
+        default:
+          return true; // Tipo no reconocido, restringir por seguridad
+      }
+      
+      const { count, error: countError } = await supabase
+        .from(tabla)
+        .select("*", { count: "exact", head: true })
+        .eq("usuario_id", userId);
+        
+      if (countError) {
+        console.error(`Error al contar ${tipo}:`, countError);
+        return true;
+      }
+      
+      return count !== null && count >= limiteDefecto;
     }
 
     const membresia = userData.membresia_activa;
@@ -121,7 +168,7 @@ export async function obtenerEstadisticasUso(userId: string) {
           .from("usuarios")
           .select(
             `
-          membresia_activa: membresias_usuarios!inner(
+          membresia_activa: membresias_usuarios!left(
             *,
             tipo_membresia: membresia_tipos(*)
           )
@@ -148,9 +195,24 @@ export async function obtenerEstadisticasUso(userId: string) {
       return null;
     }
 
-    // Si no se encontró información de membresía
+    // Si no se encontró información de membresía, usar valores por defecto
     if (!membresiaRes.data || !membresiaRes.data.membresia_activa) {
-      return null;
+      console.log("No se encontró información de membresía para el usuario. Usando valores por defecto.");
+      return {
+        totalProveedores: proveedoresRes.count || 0,
+        totalArticulos: articulosRes.count || 0,
+        totalListas: listasRes.count || 0,
+        membresia: {
+          id: "default",
+          tipo_id: "13fae609-2679-47fa-9731-e2f1badc4a61", // ID de la membresía gratuita
+          nombre: "Plan Básico",
+          limiteProveedores: 5,
+          limiteArticulos: 50,
+          limiteListas: 10,
+          fechaInicio: new Date().toISOString(),
+          fechaFin: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+        },
+      };
     }
 
     const membresia = membresiaRes.data.membresia_activa;
