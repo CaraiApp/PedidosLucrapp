@@ -22,6 +22,7 @@ export interface DatosFacturacion {
   direccion: string;
   codigo_postal?: string;
   ciudad?: string;
+  provincia?: string;
   pais?: string;
   telefono?: string;
   email_facturacion?: string;
