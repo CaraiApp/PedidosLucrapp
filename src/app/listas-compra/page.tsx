@@ -1,30 +1,12 @@
-// src/app/articulos/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import AppLayout from "../components/AppLayout";
 import { verificarLimiteAlcanzado } from "@/lib/supabase";
-
-interface Articulo {
-  id: string;
-  nombre: string;
-  precio: number;
-  unidad_id?: string;
-  unidad?: {
-    id: string;
-    nombre: string;
-    abreviatura?: string;
-  };
-  sku?: string;
-  created_at: string;
-  proveedor: {
-    id: string;
-    nombre: string;
-  };
-}
+import AppLayout from "../components/AppLayout";
+import { ListaCompra } from "@/types";
 
 interface SupabaseError {
   message: string;
@@ -33,17 +15,17 @@ interface SupabaseError {
   code?: string;
 }
 
-export default function ArticulosPage() {
+export default function ListasCompraPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [articulos, setArticulos] = useState<Articulo[]>([]);
+  const [listas, setListas] = useState<ListaCompra[]>([]);
   const [filtro, setFiltro] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
 
   useEffect(() => {
-    const cargarArticulos = async () => {
+    const cargarListas = async () => {
       try {
         setLoading(true);
 
@@ -54,48 +36,96 @@ export default function ArticulosPage() {
           return;
         }
 
-        // Verificar si se ha alcanzado el límite de artículos
+        // Verificar si se ha alcanzado el límite de listas
         const limiteExcedido = await verificarLimiteAlcanzado(
-          "articulos",
+          "listas",
           sessionData.session.user.id
         );
 
         setLimiteAlcanzado(limiteExcedido);
 
-        // Cargar artículos con información del proveedor y unidad
+        // Cargar listas de compra
         const { data, error } = await supabase
-          .from("articulos")
-          .select(
-            `
-            *,
-            proveedor:proveedor_id(id, nombre),
-            unidad:unidad_id(id, nombre, abreviatura)
-          `
-          )
+          .from("listas_compra")
+          .select(`*`)
           .eq("usuario_id", sessionData.session.user.id)
-          .order("nombre");
+          .order("fecha_creacion", { ascending: false });
 
         if (error) throw error;
 
-        setArticulos(data || []);
+        // Consulta adicional para contar los artículos de cada lista
+        const listasConConteo = [];
+        
+        for (const lista of data || []) {
+          // Contar artículos para cada lista
+          const { count, error: countError } = await supabase
+            .from("items_lista_compra")
+            .select("*", { count: "exact", head: true })
+            .eq("lista_id", lista.id);
+            
+          if (countError) {
+            console.error("Error al contar artículos:", countError);
+          }
+          
+          listasConConteo.push({
+            ...lista,
+            numero_articulos: count || 0
+          });
+        }
+
+        setListas(listasConConteo);
       } catch (err: unknown) {
         const error = err as SupabaseError;
-        console.error("Error al cargar artículos:", error.message);
+        console.error("Error al cargar listas:", error.message);
         setError(
-          "No se pudieron cargar los artículos. Por favor, intenta nuevamente."
+          "No se pudieron cargar las listas de compra. Por favor, intenta nuevamente."
         );
       } finally {
         setLoading(false);
       }
     };
 
-    cargarArticulos();
+    cargarListas();
   }, [router]);
 
-  const handleEliminarArticulo = async (id: string) => {
+  const handleCambiarEstado = async (id: string, nuevoEstado: ListaCompra['estado']) => {
+    try {
+      setLoading(true);
+
+      // Actualizar estado de la lista
+      const { error } = await supabase
+        .from("listas_compra")
+        .update({ estado: nuevoEstado })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      // Actualizar la lista en el estado
+      setListas(listas.map(lista => 
+        lista.id === id ? { ...lista, estado: nuevoEstado } : lista
+      ));
+
+      setMensaje(`Lista ${nuevoEstado === 'completada' ? 'marcada como completada' : 'actualizada'} correctamente`);
+
+      // Limpiar el mensaje después de 3 segundos
+      setTimeout(() => {
+        setMensaje(null);
+      }, 3000);
+    } catch (err: unknown) {
+      const error = err as SupabaseError;
+      console.error("Error al actualizar la lista:", error.message);
+      setError(
+        "No se pudo actualizar la lista. Por favor, intenta nuevamente."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEliminarLista = async (id: string) => {
     if (
       !window.confirm(
-        "¿Estás seguro de que quieres eliminar este artículo? Esta acción no se puede deshacer."
+        "¿Estás seguro de que quieres eliminar esta lista? Esta acción no se puede deshacer."
       )
     ) {
       return;
@@ -104,15 +134,15 @@ export default function ArticulosPage() {
     try {
       setLoading(true);
 
-      // Eliminar artículo
-      const { error } = await supabase.from("articulos").delete().eq("id", id);
+      // Eliminar lista
+      const { error } = await supabase.from("listas_compra").delete().eq("id", id);
 
       if (error) throw error;
 
-      // Actualizar la lista de artículos
-      setArticulos(articulos.filter((a) => a.id !== id));
+      // Actualizar la lista en el estado
+      setListas(listas.filter((a) => a.id !== id));
 
-      setMensaje("Artículo eliminado correctamente");
+      setMensaje("Lista eliminada correctamente");
 
       // Limpiar el mensaje después de 3 segundos
       setTimeout(() => {
@@ -120,44 +150,42 @@ export default function ArticulosPage() {
       }, 3000);
     } catch (err: unknown) {
       const error = err as SupabaseError;
-      console.error("Error al eliminar artículo:", error.message);
+      console.error("Error al eliminar lista:", error.message);
       setError(
-        "No se pudo eliminar el artículo. Por favor, intenta nuevamente."
+        "No se pudo eliminar la lista. Por favor, intenta nuevamente."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // Función para formatear precio
-  const formatearPrecio = (precio: number) => {
-    return new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency: "EUR",
-    }).format(precio);
-  };
-
-  // Filtrar artículos
-  const articulosFiltrados = articulos.filter(
-    (articulo) =>
-      articulo.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
-      (articulo.sku &&
-        articulo.sku.toLowerCase().includes(filtro.toLowerCase())) ||
-      (articulo.proveedor &&
-        articulo.proveedor.nombre.toLowerCase().includes(filtro.toLowerCase())) ||
-      (articulo.unidad && 
-        articulo.unidad.nombre.toLowerCase().includes(filtro.toLowerCase()))
+  // Filtrar listas
+  const listasFiltradas = listas.filter(
+    (lista) =>
+      (lista.title?.toLowerCase().includes(filtro.toLowerCase()) ||
+       lista.nombre_lista?.toLowerCase().includes(filtro.toLowerCase()) || 
+       lista.nombre?.toLowerCase().includes(filtro.toLowerCase()) || 
+       ''.includes(filtro.toLowerCase()))
   );
+
+  // Función para formatear fecha
+  const formatearFecha = (fecha: string) => {
+    return new Date(fecha).toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
 
   return (
     <AppLayout>
       <div className="py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Artículos</h1>
+          <h1 className="text-2xl font-bold">Listas de Compra</h1>
 
           <div className="mt-4 sm:mt-0">
             <Link
-              href="/articulos/nuevo"
+              href="/listas-compra/nuevo"
               className={`px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
                 limiteAlcanzado ? "opacity-50 cursor-not-allowed" : ""
               }`}
@@ -165,12 +193,12 @@ export default function ArticulosPage() {
                 if (limiteAlcanzado) {
                   e.preventDefault();
                   alert(
-                    "Has alcanzado el límite de artículos permitido en tu plan. Por favor, actualiza tu membresía para añadir más artículos."
+                    "Has alcanzado el límite de listas permitido en tu plan. Por favor, actualiza tu membresía para añadir más listas."
                   );
                 }
               }}
             >
-              Nuevo Artículo
+              Nueva Lista de Compra
             </Link>
           </div>
         </div>
@@ -189,11 +217,11 @@ export default function ArticulosPage() {
 
         {limiteAlcanzado && (
           <div className="mb-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-            Has alcanzado el límite de artículos permitido en tu plan.
+            Has alcanzado el límite de listas permitido en tu plan.
             <Link href="/membresias" className="underline ml-1">
               Actualiza tu membresía
             </Link>{" "}
-            para añadir más artículos.
+            para añadir más listas.
           </div>
         )}
 
@@ -218,7 +246,7 @@ export default function ArticulosPage() {
             </div>
             <input
               type="text"
-              placeholder="Buscar artículos..."
+              placeholder="Buscar listas..."
               className="pl-10 p-2 border border-gray-300 rounded-md w-full sm:max-w-xs"
               value={filtro}
               onChange={(e) => setFiltro(e.target.value)}
@@ -230,24 +258,24 @@ export default function ArticulosPage() {
           <div className="flex justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
           </div>
-        ) : articulos.length === 0 ? (
+        ) : listas.length === 0 ? (
           <div className="bg-white shadow rounded-lg p-6 text-center">
             <p className="text-gray-500 mb-4">
-              No tienes artículos registrados.
+              No tienes listas de compra registradas.
             </p>
             {!limiteAlcanzado && (
               <Link
-                href="/articulos/nuevo"
+                href="/listas-compra/nuevo"
                 className="text-indigo-600 hover:text-indigo-800 font-medium"
               >
-                Añade tu primer artículo
+                Añade tu primera lista de compra
               </Link>
             )}
           </div>
-        ) : articulosFiltrados.length === 0 ? (
+        ) : listasFiltradas.length === 0 ? (
           <div className="bg-white shadow rounded-lg p-6 text-center">
             <p className="text-gray-500">
-              No se encontraron artículos que coincidan con tu búsqueda.
+              No se encontraron listas que coincidan con tu búsqueda.
             </p>
           </div>
         ) : (
@@ -260,16 +288,10 @@ export default function ArticulosPage() {
                       Nombre
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Proveedor
+                      Fecha
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      SKU/Referencia
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Precio
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Unidad de Compra
+                      Artículos
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Acciones
@@ -277,48 +299,39 @@ export default function ArticulosPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {articulosFiltrados.map((articulo) => (
-                    <tr key={articulo.id} className="hover:bg-gray-50">
+                  {listasFiltradas.map((lista) => (
+                    <tr key={lista.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Link
-                          href={`/articulos/${articulo.id}`}
+                          href={`/listas-compra/${lista.id}`}
                           className="text-indigo-600 hover:text-indigo-900"
                         >
-                          {articulo.nombre}
+                          {lista.title || lista.nombre_lista || lista.nombre || "Lista de compra"}
                         </Link>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {articulo.proveedor ? (
-                          <Link
-                            href={`/proveedores/${articulo.proveedor.id}`}
-                            className="text-gray-900 hover:text-indigo-600"
-                          >
-                            {articulo.proveedor.nombre}
-                          </Link>
-                        ) : (
-                          <span className="text-gray-500">No asignado</span>
-                        )}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatearFecha(lista.fecha_creacion)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {articulo.sku || "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatearPrecio(articulo.precio)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {articulo.unidad ? 
-                          `${articulo.unidad.nombre}${articulo.unidad.abreviatura ? ` (${articulo.unidad.abreviatura})` : ''}` 
-                          : "-"}
+                        {lista.numero_articulos}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <Link
-                          href={`/articulos/editar/${articulo.id}`}
+                          href={`/listas-compra/${lista.id}`}
+                          className="text-indigo-600 hover:text-indigo-900 mr-3"
+                        >
+                          Ver
+                        </Link>
+                        <Link
+                          href={`/listas-compra/editar/${lista.id}`}
                           className="text-indigo-600 hover:text-indigo-900 mr-3"
                         >
                           Editar
                         </Link>
+                        
+                        
                         <button
-                          onClick={() => handleEliminarArticulo(articulo.id)}
+                          onClick={() => handleEliminarLista(lista.id)}
                           className="text-red-600 hover:text-red-900"
                         >
                           Eliminar

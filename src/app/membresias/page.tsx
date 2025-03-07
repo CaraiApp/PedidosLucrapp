@@ -51,6 +51,7 @@ export default function MembresiasPage() {
     const cargarDatos = async () => {
       try {
         setLoading(true);
+        console.log('Cargando datos...');
 
         // Verificar sesión
         const { data: sessionData } = await supabase.auth.getSession();
@@ -60,36 +61,80 @@ export default function MembresiasPage() {
         }
 
         setUserId(sessionData.session.user.id);
+        
+        try {
+          // Cargar tipos de membresía
+          console.log('Cargando tipos de membresía...');
+          const { data: membresiasData, error: membresiasError } = await supabase
+            .from("membresia_tipos")
+            .select("*")
+            .order("precio", { ascending: true });
 
-        // Cargar tipos de membresía
-        const { data: membresiasData, error: membresiasError } = await supabase
-          .from("membresia_tipos")
-          .select("*")
-          .order("precio", { ascending: true });
+          if (membresiasError) {
+            console.error('Error al cargar tipos de membresía:', membresiasError);
+            throw membresiasError;
+          }
+          
+          console.log('Tipos de membresía cargados:', membresiasData?.length || 0);
+          setTiposMembresia(membresiasData || []);
 
-        if (membresiasError) throw membresiasError;
+          // Cargar membresía actual del usuario
+          let membresiaData = null;
 
-        // Cargar membresía actual del usuario
-        const { data: usuarioData, error: usuarioError } = await supabase
-          .from("usuarios")
-          .select(
-            `
-            membresia_activa: membresias_usuarios!inner(
-              *,
-              tipo_membresia: membresia_tipos(*)
-            )
-          `
-          )
-          .eq("id", sessionData.session.user.id)
-          .single();
+          try {
+            // Primero obtenemos el ID de membresía activa del usuario
+            console.log('Consultando usuario:', sessionData.session.user.id);
+            const { data: userData, error: userError } = await supabase
+              .from("usuarios")
+              .select("membresia_activa_id")
+              .eq("id", sessionData.session.user.id)
+              .single();
 
-        if (usuarioError) throw usuarioError;
+            if (userError) {
+              console.error('Error al cargar usuario:', userError);
+              // No lanzamos error, solo registramos y continuamos
+            } else {
+              console.log('Usuario encontrado, membresía activa ID:', userData?.membresia_activa_id);
+              
+              // Si el usuario tiene membresía activa, la cargamos
+              if (userData?.membresia_activa_id) {
+                try {
+                  console.log('Cargando membresía:', userData.membresia_activa_id);
+                  const { data: membresiaUsuario, error: membresiaError } = await supabase
+                    .from("membresias_usuarios")
+                    .select(`
+                      *,
+                      tipo_membresia: membresia_tipos(*)
+                    `)
+                    .eq("id", userData.membresia_activa_id)
+                    .single();
 
-        setTiposMembresia(membresiasData || []);
-        setMembresiaActual(usuarioData?.membresia_activa || null);
+                  if (membresiaError) {
+                    console.error('Error al cargar membresía:', membresiaError);
+                    // No lanzamos error, solo registramos y continuamos
+                  } else {
+                    console.log('Membresía cargada:', membresiaUsuario?.id);
+                    membresiaData = membresiaUsuario;
+                  }
+                } catch (membresiaErr) {
+                  console.error('Error en try/catch de membresía:', membresiaErr);
+                  // No lanzamos error, solo registramos y continuamos
+                }
+              }
+            }
+          } catch (userErr) {
+            console.error('Error en try/catch de usuario:', userErr);
+            // No lanzamos error, solo registramos y continuamos
+          }
+
+          setMembresiaActual(membresiaData);
+        } catch (err) {
+          console.error('Error al cargar tipos de membresía:', err);
+          throw err;
+        }
       } catch (err: unknown) {
         const error = err as SupabaseError;
-        console.error("Error al cargar datos:", error.message);
+        console.error("Error al cargar datos:", error);
         setError(
           "No se pudieron cargar los datos. Por favor, intenta nuevamente."
         );

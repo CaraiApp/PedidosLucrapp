@@ -114,17 +114,19 @@ export default function EditarProveedorPage() {
         return;
       }
 
-      // Actualizar proveedor
+      // Ahora utilizamos la columna contacto directamente
+      const proveedorData = {
+        nombre: formData.nombre.trim(),
+        email: formData.email.trim() || null,
+        telefono: formData.telefono.trim() || null,
+        contacto: formData.contacto.trim() || null, // Usamos la columna contacto
+        direccion: formData.direccion.trim() || null,
+        notas: formData.notas?.trim() || null,
+      };
+
       const { error: updateError } = await supabase
         .from("proveedores")
-        .update({
-          nombre: formData.nombre.trim(),
-          email: formData.email.trim() || null,
-          telefono: formData.telefono.trim() || null,
-          contacto: formData.contacto.trim() || null,
-          direccion: formData.direccion.trim() || null,
-          notas: formData.notas.trim() || null,
-        })
+        .update(proveedorData)
         .eq("id", proveedorId)
         .eq("usuario_id", sessionData.session.user.id);
 

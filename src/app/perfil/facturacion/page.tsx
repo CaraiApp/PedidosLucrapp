@@ -51,6 +51,11 @@ export default function FacturacionPage() {
           
           // Combinar datos del usuario con datos de facturación
           // Priorizar los datos de la tabla datos_facturacion
+          console.log("Datos de facturación completos:", {
+            facturacionData,
+            "provincia": facturacionData?.provincia, // Mostrar específicamente el campo provincia
+          });
+          
           setFacturaData({
             // Si tenemos datos en la tabla datos_facturacion, los usamos
             razon_social: facturacionData?.nombre_empresa || user.empresa || user.razon_social || "",
@@ -78,7 +83,12 @@ export default function FacturacionPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFacturaData((prev) => ({ ...prev, [name]: value }));
+    console.log(`Campo ${name} cambiado a: ${value}`);
+    setFacturaData((prev) => {
+      const updated = { ...prev, [name]: value };
+      console.log(`Nuevo estado del formulario:`, updated);
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,6 +167,10 @@ export default function FacturacionPage() {
             email_facturacion: user?.email
           };
           
+          // Log para verificar que el campo provincia se está enviando correctamente
+          console.log("Datos a guardar:", facturacionData);
+          console.log("Campo provincia a guardar:", facturaData.provincia);
+          
           // Intentamos primero buscar un registro existente
           console.log("Buscando si existe un registro de facturación para el usuario");
           const { data: existingData, error: checkError } = await supabase
@@ -232,15 +246,20 @@ export default function FacturacionPage() {
               
               // Actualizar el formulario con los datos más recientes
               if (refreshData) {
+                console.log("Datos refrescados:", refreshData);
+                console.log("Campo provincia recargado:", refreshData.provincia);
+                
+                // Usar los datos recargados, sin fallbacks para evitar sobrescribir
                 setFacturaData(prev => ({
                   ...prev,
-                  razon_social: refreshData.nombre_empresa || prev.razon_social,
-                  cif: refreshData.cif || prev.cif,
-                  direccion_fiscal: refreshData.direccion || prev.direccion_fiscal,
-                  codigo_postal: refreshData.codigo_postal || prev.codigo_postal,
-                  ciudad: refreshData.ciudad || prev.ciudad,
-                  provincia: refreshData.provincia || prev.provincia,
-                  pais: refreshData.pais || prev.pais,
+                  razon_social: refreshData.nombre_empresa,
+                  cif: refreshData.cif,
+                  direccion_fiscal: refreshData.direccion,
+                  codigo_postal: refreshData.codigo_postal,
+                  ciudad: refreshData.ciudad,
+                  provincia: refreshData.provincia,
+                  pais: refreshData.pais,
+                  telefono: refreshData.telefono
                 }));
               }
             }
@@ -424,6 +443,9 @@ export default function FacturacionPage() {
                   onChange={handleChange}
                   required
                   fullWidth
+                  placeholder="Introduce la provincia"
+                  // Muestra el valor actual en un título para depuración
+                  title={`Valor actual: ${facturaData.provincia || 'vacío'}`}
                 />
               </div>
               

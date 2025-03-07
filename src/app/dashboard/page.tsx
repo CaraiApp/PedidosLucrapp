@@ -77,18 +77,20 @@ export default function Dashboard() {
         .from("listas_compra")
         .select(`
           id,
-          nombre,
+          title,
           fecha_creacion,
           estado,
           proveedor_id,
-          proveedor:proveedores(nombre),
-          articulos_lista(count)
+          proveedor:proveedores(nombre)
         `)
         .eq("usuario_id", userId)
         .order("fecha_creacion", { ascending: false })
         .limit(5);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error al obtener listas_compra:", error);
+        throw new Error(`Error al obtener listas: ${error.message || JSON.stringify(error)}`);
+      }
 
       if (!data || data.length === 0) {
         setListasRecientes([]);
@@ -97,25 +99,47 @@ export default function Dashboard() {
       }
 
       // Transformar los datos para el componente
-      const listasFormateadas = (data as ListaResponse[]).map((lista) => ({
-        id: lista.id,
-        nombre: lista.nombre,
-        fecha_creacion: lista.fecha_creacion,
-        estado: lista.estado as 'borrador' | 'enviada' | 'completada' | 'cancelada',
-        proveedor_id: lista.proveedor_id,
-        proveedor: lista.proveedor ? { 
-          id: lista.proveedor_id || "", 
-          nombre: lista.proveedor.nombre,
-          usuario_id: userId,
-          created_at: ""
-        } : undefined,
-        items: [],
-        numero_articulos: lista.articulos_lista && lista.articulos_lista.length > 0 ? lista.articulos_lista[0]?.count || 0 : 0
-      }));
+      const listasFormateadas = [];
+      
+      for (const lista of data) {
+        // Comprobamos que todos los campos necesarios existan
+        if (!lista || !lista.id) {
+          console.error("Lista incompleta:", lista);
+          continue;
+        }
+        
+        // Contar artículos para cada lista
+        const { count, error: countError } = await supabase
+          .from("items_lista_compra")
+          .select("*", { count: "exact", head: true })
+          .eq("lista_id", lista.id);
+          
+        if (countError) {
+          console.error("Error al contar artículos para lista:", lista.id, countError);
+        }
+        
+        listasFormateadas.push({
+          id: lista.id,
+          nombre: lista.title || "Sin nombre",
+          fecha_creacion: lista.fecha_creacion || new Date().toISOString(),
+          estado: (lista.estado || 'borrador') as 'borrador' | 'enviada' | 'completada' | 'cancelada',
+          proveedor_id: lista.proveedor_id,
+          proveedor: lista.proveedor && lista.proveedor.nombre ? { 
+            id: lista.proveedor_id || "", 
+            nombre: lista.proveedor.nombre,
+            usuario_id: userId,
+            created_at: ""
+          } : undefined,
+          items: [],
+          numero_articulos: count || 0
+        });
+      }
 
       setListasRecientes(listasFormateadas);
     } catch (error) {
       console.error("Error al cargar listas recientes:", error);
+      // No mostrar error al usuario, simplemente dejamos la lista vacía
+      setListasRecientes([]);
     } finally {
       setLoading(false);
     }
@@ -152,7 +176,7 @@ export default function Dashboard() {
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                   Listas recientes
                 </h2>
-                <Button href="/listas" variant="outline" size="sm">
+                <Button href="/listas-compra" variant="outline" size="sm">
                   Ver todas
                 </Button>
               </div>
@@ -184,7 +208,7 @@ export default function Dashboard() {
                       />
                     </svg>
                   }
-                  onClick={() => router.push("/listas/nueva")}
+                  onClick={() => router.push("/listas-compra/nuevo")}
                 />
 
                 <Card.Resource

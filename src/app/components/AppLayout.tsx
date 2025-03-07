@@ -14,6 +14,33 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  // Agregar evento para cerrar el menú al hacer clic en cualquier parte fuera del menú
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const userMenu = document.getElementById('user-menu-dropdown');
+      const userMenuButton = document.getElementById('user-menu-button');
+      
+      if (isUserMenuOpen && 
+          userMenu && 
+          userMenuButton && 
+          !userMenu.contains(event.target as Node) && 
+          !userMenuButton.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    
+    // Añadir listener cuando el menú está abierto
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -69,8 +96,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     },
     {
       name: "Listas de Compra",
-      href: "/listas",
-      current: pathname.startsWith("/listas"),
+      href: "/listas-compra",
+      current: pathname.startsWith("/listas-compra"),
     },
   ];
 
@@ -114,14 +141,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:items-center">
               {user ? (
-                <div className="ml-3 relative group">
+                <div className="ml-3 relative">
                   <div>
                     <button
                       type="button"
-                      className="group flex items-center text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 rounded-md"
+                      className="flex items-center text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 rounded-md"
                       id="user-menu-button"
                       aria-expanded="false"
                       aria-haspopup="true"
+                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                     >
                       <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-800 font-medium">
                         {user?.username?.[0] || user?.email?.[0] || "?"}
@@ -130,7 +158,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         {user?.username || user?.email}
                       </span>
                       <svg 
-                        className="-mr-1 ml-1 h-5 w-5 text-gray-400 group-hover:text-gray-500" 
+                        className="-mr-1 ml-1 h-5 w-5 text-gray-400" 
                         xmlns="http://www.w3.org/2000/svg" 
                         viewBox="0 0 20 20" 
                         fill="currentColor" 
@@ -142,20 +170,30 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   </div>
                   
                   {/* Dropdown menu, show/hide based on menu state */}
-                  <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 hidden group-hover:block focus:outline-none" role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button" tabIndex={-1}>
+                  <div 
+                    id="user-menu-dropdown"
+                    className={`origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 ${isUserMenuOpen ? 'block' : 'hidden'} focus:outline-none z-50`} 
+                    role="menu" 
+                    aria-orientation="vertical" 
+                    aria-labelledby="user-menu-button" 
+                    tabIndex={-1}>
                     {userNavigation.map((item) => (
                       <Link
                         key={item.name}
                         href={item.href}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         role="menuitem"
+                        onClick={() => setIsUserMenuOpen(false)}
                       >
                         {item.name}
                       </Link>
                     ))}
                     <div className="border-t border-gray-100 my-1"></div>
                     <button
-                      onClick={handleLogout}
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        handleLogout();
+                      }}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       role="menuitem"
                     >

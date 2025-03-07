@@ -72,6 +72,7 @@ export default function NuevoProveedorPage() {
     e.preventDefault();
 
     if (limiteAlcanzado) {
+      router.push("/membresias");
       return;
     }
 
@@ -92,15 +93,18 @@ export default function NuevoProveedorPage() {
       }
 
       // Crear nuevo proveedor
-      const { error: insertError } = await supabase.from("proveedores").insert({
+      // Ahora utilizamos la columna contacto directamente
+      const proveedorData = {
         usuario_id: sessionData.session.user.id,
         nombre: formData.nombre.trim(),
         email: formData.email.trim() || null,
         telefono: formData.telefono.trim() || null,
-        contacto: formData.contacto.trim() || null,
+        contacto: formData.contacto.trim() || null, // Usamos la columna contacto
         direccion: formData.direccion.trim() || null,
-        notas: formData.notas.trim() || null,
-      });
+        notas: formData.notas.trim() || null
+      };
+
+      const { error: insertError } = await supabase.from("proveedores").insert(proveedorData);
 
       if (insertError) throw insertError;
 

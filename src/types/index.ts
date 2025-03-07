@@ -30,11 +30,12 @@ export interface DatosFacturacion {
 export interface MembresiasUsuario {
   id: string;
   usuario_id: string;
-  membresia_id: string;
+  tipo_membresia_id: string;
   fecha_inicio: string;
   fecha_fin: string;
   estado: string;
   tipo_membresia: TipoMembresia;
+  stripe_subscription_id?: string;
 }
 
 export interface TipoMembresia {
@@ -42,12 +43,13 @@ export interface TipoMembresia {
   nombre: string;
   descripcion?: string;
   precio: number;
-  periodo: string;
-  limite_proveedores: number;
-  limite_articulos: number;
-  limite_listas: number;
+  duracion_meses: number;
+  limite_proveedores: number | null;
+  limite_articulos: number | null;
+  limite_listas: number | null;
   orden?: number;
-  activo: boolean;
+  activo?: boolean;
+  stripe_price_id?: string;
 }
 
 // Tipos relacionados con proveedores
@@ -58,9 +60,18 @@ export interface Proveedor {
   telefono?: string;
   email?: string;
   web?: string;
+  contacto?: string;
   direccion?: string;
   notas?: string;
   created_at: string;
+}
+
+// Unidades de compra
+export interface Unidad {
+  id: string;
+  nombre: string;
+  abreviatura?: string;
+  created_at?: string;
 }
 
 // Tipos relacionados con artículos
@@ -71,24 +82,44 @@ export interface Articulo {
   nombre: string;
   descripcion?: string;
   precio?: number;
-  unidad?: string;
+  unidad_id?: string;
+  unidad?: Unidad;
   sku?: string;
+  imagen_url?: string;
+  // Los campos de stock se ocultan de la interfaz, pero se mantienen en el modelo
+  // stock_actual?: number;
+  // stock_minimo?: number;
+  activo?: boolean;
   created_at: string;
   proveedor?: Proveedor;
+  categorias?: Categoria[];
+}
+
+// Tipos relacionados con categorías
+export interface Categoria {
+  id: string;
+  usuario_id: string;
+  nombre: string;
+  descripcion?: string;
+  created_at: string;
 }
 
 // Tipos relacionados con listas de compra
 export interface ListaCompra {
   id: string;
   usuario_id: string;
-  nombre: string;
+  nombre?: string;
+  nombre_lista?: string;
+  title?: string;
   fecha_creacion: string;
   estado: 'borrador' | 'enviada' | 'completada' | 'cancelada';
   proveedor_id?: string;
   fecha_envio?: string;
   notas?: string;
+  total?: number;
   items?: ItemListaCompra[];
   proveedor?: Proveedor;
+  numero_articulos?: number; // Para mostrar el contador en la lista
 }
 
 export interface ItemListaCompra {
@@ -96,8 +127,10 @@ export interface ItemListaCompra {
   lista_id: string;
   articulo_id: string;
   cantidad: number;
+  precio_unitario?: number;
   unidad?: string;
   notas?: string;
+  completado?: boolean;
   articulo?: Articulo;
 }
 

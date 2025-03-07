@@ -5,14 +5,28 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { ListaCompra } from "@/types";
 
+// Verificación de props para evitar errores
+function validateLista(lista: any): boolean {
+  return !!(
+    lista &&
+    typeof lista === 'object' &&
+    lista.id &&
+    lista.estado &&
+    lista.fecha_creacion
+  );
+}
+
 interface RecentListsProps {
   listas: ListaCompra[];
 }
 
-export default function RecentLists({ listas }: RecentListsProps) {
+export default function RecentLists({ listas = [] }: RecentListsProps) {
   const router = useRouter();
+  
+  // Validar que listas sea un array
+  const listasValidadas = Array.isArray(listas) ? listas.filter(validateLista) : [];
 
-  if (!listas || listas.length === 0) {
+  if (!listasValidadas || listasValidadas.length === 0) {
     return (
       <Card>
         <div className="flex flex-col items-center justify-center py-10">
@@ -24,7 +38,7 @@ export default function RecentLists({ listas }: RecentListsProps) {
           </p>
           <div className="mt-6">
             <Button 
-              onClick={() => router.push("/listas/nueva")}
+              onClick={() => router.push("/listas-compra/nuevo")}
             >
               Crear lista de compra
             </Button>
@@ -56,8 +70,8 @@ export default function RecentLists({ listas }: RecentListsProps) {
   return (
     <Card bodyClassName="p-0">
       <ul className="divide-y divide-gray-200">
-        {listas.map((lista) => (
-          <li key={lista.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/listas/${lista.id}`)}>
+        {listasValidadas.map((lista) => (
+          <li key={lista.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/listas-compra/${lista.id}`)}>
             <div className="px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
@@ -79,7 +93,7 @@ export default function RecentLists({ listas }: RecentListsProps) {
                   </div>
                   <div>
                     <h3 className="text-base font-medium text-gray-900">
-                      {lista.nombre || `Lista #${lista.id.slice(0, 8)}`}
+                      {lista.nombre || lista.title || `Lista #${lista.id.slice(0, 8)}`}
                     </h3>
                     {lista.proveedor && (
                       <p className="text-sm text-gray-500">

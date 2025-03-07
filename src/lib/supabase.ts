@@ -12,6 +12,30 @@ export async function verificarLimiteAlcanzado(
   tipo: "proveedores" | "articulos" | "listas",
   userId: string
 ) {
+  console.log(`Verificando límite de ${tipo} para usuario ${userId}`); // Log para verificar
+  
+  // Forzar un límite muy bajo para pruebas (eliminar en producción)
+  if (tipo === "listas") {
+    console.log("OVERRIDE: Forzando verificación limitada para listas");
+    
+    // Contar listas actuales
+    const { count, error: countError } = await supabase
+      .from("listas_compra")
+      .select("*", { count: "exact", head: true })
+      .eq("usuario_id", userId);
+    
+    if (countError) {
+      console.error("Error al contar listas:", countError);
+      return true; // En caso de error, restringir por seguridad
+    }
+    
+    console.log(`Usuario tiene ${count} listas, límite forzado: 3`);
+    const excedido = count !== null && count >= 3;
+    console.log(`Límite excedido: ${excedido}`);
+    
+    // Límite bajo para pruebas: solo 3 listas
+    return excedido;
+  }
   try {
     // 1. Obtener la membresía activa del usuario
     const { data: userData, error: userError } = await supabase
@@ -65,6 +89,9 @@ export async function verificarLimiteAlcanzado(
           return true; // Tipo no reconocido, restringir por seguridad
       }
       
+      // Contar recursos actuales
+      console.log(`Contando ${tipo} en tabla ${tabla} para usuario ${userId}`);
+      
       const { count, error: countError } = await supabase
         .from(tabla)
         .select("*", { count: "exact", head: true })
@@ -75,7 +102,12 @@ export async function verificarLimiteAlcanzado(
         return true;
       }
       
-      return count !== null && count >= limiteDefecto;
+      console.log(`Usuario tiene ${count} ${tipo} de un límite de ${limiteDefecto}`);
+      
+      const limiteAlcanzado = count !== null && count >= limiteDefecto;
+      console.log(`Límite alcanzado: ${limiteAlcanzado}`);
+      
+      return limiteAlcanzado;
     }
 
     const membresia = userData.membresia_activa;
@@ -121,6 +153,8 @@ export async function verificarLimiteAlcanzado(
         return true; // Tipo no reconocido, restringir por seguridad
     }
 
+    console.log(`Contando ${tipo} en tabla ${tabla} para usuario ${userId} (membresía activa)`);
+    
     const { count, error: countError } = await supabase
       .from(tabla)
       .select("*", { count: "exact", head: true })
@@ -131,8 +165,13 @@ export async function verificarLimiteAlcanzado(
       return true; // En caso de error, restringir por seguridad
     }
 
+    console.log(`Usuario tiene ${count} ${tipo} de un límite de ${limite} (membresía activa)`);
+    
     // 3. Verificar si ha alcanzado el límite
-    return count !== null && count >= limite;
+    const limiteAlcanzado = count !== null && count >= limite;
+    console.log(`Límite alcanzado (membresía activa): ${limiteAlcanzado}`);
+    
+    return limiteAlcanzado;
   } catch (error) {
     console.error("Error al verificar límite:", error);
     return true; // En caso de error, restringir por seguridad
@@ -163,17 +202,10 @@ export async function obtenerEstadisticasUso(userId: string) {
           .select("*", { count: "exact", head: true })
           .eq("usuario_id", userId),
 
-        // Obtener información de membresía
+        // Obtener información de membresía - usando LEFT JOIN en lugar de INNER JOIN
         supabase
           .from("usuarios")
-          .select(
-            `
-          membresia_activa: membresias_usuarios!left(
-            *,
-            tipo_membresia: membresia_tipos(*)
-          )
-        `
-          )
+          .select("membresia_activa_id")
           .eq("id", userId)
           .single(),
       ]);
@@ -196,7 +228,31 @@ export async function obtenerEstadisticasUso(userId: string) {
     }
 
     // Si no se encontró información de membresía, usar valores por defecto
-    if (!membresiaRes.data || !membresiaRes.data.membresia_activa) {
+    let membresiaData = null;
+    
+    // Verificamos si hay una membresía activa
+    if (membresiaRes.data && membresiaRes.data.membresia_activa_id) {
+      try {
+        // Obtenemos los detalles de la membresía
+        const { data: membresiaUsuario, error: membresiaError } = await supabase
+          .from("membresias_usuarios")
+          .select(`
+            *,
+            tipo_membresia: membresia_tipos(*)
+          `)
+          .eq("id", membresiaRes.data.membresia_activa_id)
+          .single();
+          
+        if (!membresiaError && membresiaUsuario) {
+          membresiaData = membresiaUsuario;
+        }
+      } catch (err) {
+        console.error("Error al cargar detalles de membresía:", err);
+      }
+    }
+    
+    // Si no hay membresía, usamos valores por defecto
+    if (!membresiaData) {
       console.log("No se encontró información de membresía para el usuario. Usando valores por defecto.");
       return {
         totalProveedores: proveedoresRes.count || 0,
@@ -215,21 +271,22 @@ export async function obtenerEstadisticasUso(userId: string) {
       };
     }
 
-    const membresia = membresiaRes.data.membresia_activa;
+    // Si tenemos membresía válida, usamos sus valores
+    const tipoMembresia = membresiaData.tipo_membresia;
 
     return {
       totalProveedores: proveedoresRes.count || 0,
       totalArticulos: articulosRes.count || 0,
       totalListas: listasRes.count || 0,
       membresia: {
-        id: membresia.id,
-        tipo_id: membresia.tipo_membresia.id,
-        nombre: membresia.tipo_membresia.nombre,
-        limiteProveedores: membresia.tipo_membresia.limite_proveedores || 0,
-        limiteArticulos: membresia.tipo_membresia.limite_articulos || 0,
-        limiteListas: membresia.tipo_membresia.limite_listas || 0,
-        fechaInicio: membresia.fecha_inicio,
-        fechaFin: membresia.fecha_fin,
+        id: membresiaData.id,
+        tipo_id: tipoMembresia.id,
+        nombre: tipoMembresia.nombre,
+        limiteProveedores: tipoMembresia.limite_proveedores || 0,
+        limiteArticulos: tipoMembresia.limite_articulos || 0,
+        limiteListas: tipoMembresia.limite_listas || 0,
+        fechaInicio: membresiaData.fecha_inicio,
+        fechaFin: membresiaData.fecha_fin,
       },
     };
   } catch (error) {
