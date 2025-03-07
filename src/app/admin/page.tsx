@@ -50,14 +50,24 @@ export default function AdminAccess() {
     setMensaje(null);
     setIsLoading(true);
 
-    // Verificar la contraseña (en producción debería usar una solución más segura)
-    if (password === "Global01.") {
-      // Almacenar en sessionStorage para mantener el acceso
-      sessionStorage.setItem("adminAccess", "granted");
-      router.push("/admin/dashboard");
-    } else {
+    try {
+      // Verificar la contraseña (en producción debería usar una solución más segura)
+      if (password === "Global01") {
+        // Almacenar en sessionStorage para mantener el acceso
+        sessionStorage.setItem("adminAccess", "granted");
+        console.log("Acceso de administrador concedido");
+        router.push("/admin/dashboard");
+      } else {
+        setMensaje({
+          texto: "Contraseña incorrecta. Por favor, inténtelo nuevamente.",
+          tipo: "error"
+        });
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error("Error al iniciar sesión de administrador:", error);
       setMensaje({
-        texto: "Contraseña incorrecta. Por favor, inténtelo nuevamente.",
+        texto: "Ha ocurrido un error al iniciar sesión. Intente nuevamente.",
         tipo: "error"
       });
       setIsLoading(false);

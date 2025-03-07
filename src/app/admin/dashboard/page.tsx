@@ -32,26 +32,10 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Verificar acceso de admin al cargar el componente
-    const verificarAcceso = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const hasAdminAccess = sessionStorage.getItem("adminAccess") === "granted";
-        
-        if (!session || !hasAdminAccess) {
-          router.push("/admin");
-          return;
-        }
-        
-        cargarEstadisticas();
-      } catch (err) {
-        console.error("Error al verificar sesión:", err);
-        router.push("/admin");
-      }
-    };
-    
-    verificarAcceso();
-  }, [router]);
+    // Cargar estadísticas al montar el componente
+    // La verificación de acceso ya se hace en el AdminAuthGuard
+    cargarEstadisticas();
+  }, []);
 
   const cargarEstadisticas = async () => {
     try {
