@@ -96,14 +96,33 @@ export default function FacturacionPage() {
     setSaving(true);
     setMensaje(null);
 
+    // Crear un log detallado para depuración
+    const logError = (etapa: string, error: any) => {
+      console.error(`[ERROR - ${etapa}]`, error);
+      console.error(`[ERROR DETAILS - ${etapa}]`, {
+        mensaje: error?.message || 'Sin mensaje',
+        detalles: error?.details || 'Sin detalles',
+        hint: error?.hint || 'Sin hint',
+        código: error?.code || 'Sin código'
+      });
+    };
+
+    const logInfo = (etapa: string, data: any) => {
+      console.log(`[INFO - ${etapa}]`, data);
+    };
+
     try {
-      console.log("Enviando datos de facturación:", facturaData);
+      logInfo('INICIO', "Iniciando proceso de guardar datos de facturación");
+      logInfo('DATOS', facturaData);
       
       // Actualizar campo empresa en la tabla usuarios
       // Comprobar que tenemos un usuario autenticado
       if (!user || !user.id) {
+        logError('AUTENTICACIÓN', new Error("Usuario no autenticado"));
         throw new Error("Usuario no autenticado");
       }
+      
+      logInfo('USUARIO', { id: user.id, email: user.email });
       
       try {
         // Actualizamos los campos en la tabla usuarios
@@ -114,7 +133,7 @@ export default function FacturacionPage() {
         
         // Si no tenemos campos para actualizar, omitir esta operación
         if (Object.keys(usuariosUpdate).length > 0) {
-          console.log("Actualizando usuario con datos:", usuariosUpdate);
+          logInfo('ACTUALIZAR_USUARIO', usuariosUpdate);
           
           const { error: usuariosError } = await supabase
             .from('usuarios')
@@ -122,37 +141,31 @@ export default function FacturacionPage() {
             .eq('id', user.id);
             
           if (usuariosError) {
-            console.error('Error al actualizar datos en usuarios:', usuariosError);
+            logError('ACTUALIZAR_USUARIO', usuariosError);
             throw new Error("Error al actualizar datos de usuario");
           }
           
-          console.log("Datos de usuario actualizados correctamente");
+          logInfo('ACTUALIZAR_USUARIO_ÉXITO', "Datos de usuario actualizados correctamente");
         } else {
-          console.log("No hay campos para actualizar en la tabla usuarios");
+          logInfo('ACTUALIZAR_USUARIO_SKIP', "No hay campos para actualizar en la tabla usuarios");
         }
       } catch (updateUserError) {
-        console.error("Error en actualización de usuario:", updateUserError);
+        logError('ACTUALIZAR_USUARIO_EXCEPCIÓN', updateUserError);
         // No lanzamos el error, continuamos para intentar guardar en la tabla de facturación
       }
       
       // Ahora que la tabla existe, podemos continuar directamente
+      logInfo('INICIO_FACTURACION', "Iniciando operaciones en tabla datos_facturacion");
       
       try {
         // Verificamos que el usuario exista y está autenticado
         if (!user || !user.id) {
+          logError('VERIFICACION_USUARIO', new Error('Usuario no autenticado'));
           throw new Error('Usuario no autenticado');
         }
         
         // Creamos o actualizamos un objeto en la tabla datos_facturacion
         try {
-          // Verificar que tenemos un usuario autenticado
-          if (!user || !user.id) {
-            throw new Error('Usuario no autenticado');
-          }
-          
-          // Intentamos insertar un nuevo registro
-          // Si ya existe, el error nos lo indicará y procederemos a actualizar
-          
           // Preparamos los datos a guardar
           const facturacionData = {
             usuario_id: user?.id,
@@ -167,12 +180,53 @@ export default function FacturacionPage() {
             email_facturacion: user?.email
           };
           
-          // Log para verificar que el campo provincia se está enviando correctamente
-          console.log("Datos a guardar:", facturacionData);
-          console.log("Campo provincia a guardar:", facturaData.provincia);
+          // Log detallado para verificar los datos
+          logInfo('DATOS_FACTURACION', facturacionData);
+          logInfo('CAMPO_PROVINCIA', { 
+            valor: facturaData.provincia,
+            tipo: typeof facturaData.provincia,
+            longitud: facturaData.provincia?.length || 0
+          });
+          
+          // Verificar la tabla y sus columnas - usando información de schema
+          logInfo('VERIFICAR_TABLA', "Intentando realizar una consulta directa para verificar la tabla");
+          try {
+            // Intento directo para verificar que la tabla existe
+            const { data: testData, error: testError } = await supabase
+              .from('datos_facturacion')
+              .select('count(*)')
+              .limit(1);
+              
+            if (testError) {
+              logError('VERIFICAR_TABLA', testError);
+            } else {
+              logInfo('TABLA_EXISTE', 'La tabla datos_facturacion existe y es accesible');
+            }
+            
+            // Verificar columnas mediante información del esquema
+            const { data: columnInfo, error: columnError } = await supabase
+              .from('information_schema.columns')
+              .select('column_name')
+              .eq('table_name', 'datos_facturacion')
+              .eq('table_schema', 'public');
+              
+            if (columnError) {
+              logError('VERIFICAR_COLUMNAS', columnError);
+            } else {
+              logInfo('COLUMNAS_ENCONTRADAS', columnInfo || 'No se encontraron columnas');
+              
+              // Verificar explícitamente la columna provincia
+              const provinciColumn = columnInfo?.find(col => col.column_name === 'provincia');
+              logInfo('COLUMNA_PROVINCIA', provinciColumn 
+                ? 'La columna provincia existe en la tabla' 
+                : 'La columna provincia NO existe en la tabla');
+            }
+          } catch (schemaError) {
+            logError('ERROR_SCHEMA', schemaError);
+          }
           
           // Intentamos primero buscar un registro existente
-          console.log("Buscando si existe un registro de facturación para el usuario");
+          logInfo('BUSCAR_REGISTRO', { usuario_id: user.id });
           const { data: existingData, error: checkError } = await supabase
             .from('datos_facturacion')
             .select('*')
@@ -180,7 +234,7 @@ export default function FacturacionPage() {
             .maybeSingle();
             
           if (checkError) {
-            console.error('Error al verificar datos de facturación:', checkError);
+            logError('BUSCAR_REGISTRO', checkError);
             // Si es un error de que la tabla no existe, informamos claramente
             if (checkError.message && checkError.message.includes('does not exist')) {
               setMensaje({
@@ -189,50 +243,62 @@ export default function FacturacionPage() {
               });
               return;
             }
+          } else {
+            logInfo('REGISTRO_ENCONTRADO', existingData || 'No se encontró registro previo');
           }
             
           if (existingData && existingData.id) {
             // Si existe, actualizamos
-            console.log("Actualizando registro existente con ID:", existingData.id);
+            logInfo('ACTUALIZAR_REGISTRO', { id: existingData.id });
             try {
               const { data, error } = await supabase
                 .from('datos_facturacion')
-                .update(facturacionData)
-                .eq('id', existingData.id);
+                .update({
+                  ...facturacionData,
+                  // Asegurarnos de que el campo provincia se incluye explícitamente
+                  provincia: facturaData.provincia
+                })
+                .eq('id', existingData.id)
+                .select();
                 
               if (error) {
-                console.error("Error al actualizar facturación:", error);
+                logError('ACTUALIZAR_REGISTRO', error);
                 throw error;
               }
               
-              console.log("Registro actualizado correctamente");
+              logInfo('ACTUALIZAR_REGISTRO_ÉXITO', data || 'Actualizado correctamente');
             } catch (updateError) {
-              console.error("Error en actualización de facturación:", updateError);
+              logError('ACTUALIZAR_REGISTRO_EXCEPCION', updateError);
               throw new Error("No se pudo actualizar el registro de facturación");
             }
           } else {
             // Si no existe, lo insertamos
-            console.log("Creando nuevo registro de facturación");
+            logInfo('CREAR_REGISTRO', 'Intentando crear nuevo registro');
             try {
               const { data, error } = await supabase
                 .from('datos_facturacion')
-                .insert([facturacionData]);
+                .insert([{
+                  ...facturacionData,
+                  // Asegurarnos de que el campo provincia se incluye explícitamente
+                  provincia: facturaData.provincia
+                }])
+                .select();
                 
               if (error) {
-                console.error("Error al crear facturación:", error);
+                logError('CREAR_REGISTRO', error);
                 throw error;
               }
               
-              console.log("Nuevo registro creado correctamente");
+              logInfo('CREAR_REGISTRO_ÉXITO', data || 'Creado correctamente');
             } catch (insertError) {
-              console.error("Error en creación de facturación:", insertError);
+              logError('CREAR_REGISTRO_EXCEPCION', insertError);
               throw new Error("No se pudo crear el registro de facturación");
             }
           }
           
           // Recargamos los datos para mostrar la información actualizada
           try {
-            console.log("Recargando datos de facturación...");
+            logInfo('RECARGAR_DATOS', "Intentando recargar datos actualizados");
             const { data: refreshData, error: refreshError } = await supabase
               .from('datos_facturacion')
               .select('*')
@@ -240,34 +306,58 @@ export default function FacturacionPage() {
               .maybeSingle();
               
             if (refreshError) {
-              console.error("Error al recargar datos:", refreshError);
+              logError('RECARGAR_DATOS', refreshError);
             } else {
-              console.log("Datos recargados:", refreshData);
+              logInfo('DATOS_RECARGADOS', refreshData || 'Sin datos');
               
               // Actualizar el formulario con los datos más recientes
               if (refreshData) {
-                console.log("Datos refrescados:", refreshData);
-                console.log("Campo provincia recargado:", refreshData.provincia);
+                logInfo('DATOS_REFRESCADOS', refreshData);
                 
-                // Usar los datos recargados, sin fallbacks para evitar sobrescribir
-                setFacturaData(prev => ({
-                  ...prev,
-                  razon_social: refreshData.nombre_empresa,
-                  cif: refreshData.cif,
-                  direccion_fiscal: refreshData.direccion,
-                  codigo_postal: refreshData.codigo_postal,
-                  ciudad: refreshData.ciudad,
-                  provincia: refreshData.provincia,
-                  pais: refreshData.pais,
-                  telefono: refreshData.telefono
-                }));
+                // Log específico para verificar la columna provincia
+                const allPropertiesLog = Object.keys(refreshData);
+                logInfo('TODAS_PROPIEDADES', allPropertiesLog);
+                
+                // Verificar el valor de provincia
+                logInfo('PROVINCIA_RECARGADA', { 
+                  valor: refreshData.provincia, 
+                  tipo: typeof refreshData.provincia,
+                  existe: refreshData.hasOwnProperty('provincia'),
+                  resultado_json: JSON.stringify(refreshData)
+                });
+                
+                // Usar los datos recargados, asegurando que los datos están bien definidos
+                setFacturaData(prev => {
+                  // Verificar cada campo y usar el valor recargado solo si existe
+                  const updated = {
+                    ...prev,
+                    razon_social: refreshData.nombre_empresa || prev.razon_social,
+                    cif: refreshData.cif || prev.cif,
+                    direccion_fiscal: refreshData.direccion || prev.direccion_fiscal,
+                    codigo_postal: refreshData.codigo_postal || prev.codigo_postal,
+                    ciudad: refreshData.ciudad || prev.ciudad,
+                    // Especial atención a esta línea para evitar que se pierda
+                    provincia: refreshData.provincia !== undefined ? refreshData.provincia : prev.provincia,
+                    pais: refreshData.pais || prev.pais,
+                    telefono: refreshData.telefono || prev.telefono
+                  };
+                  
+                  logInfo('ESTADO_ACTUALIZADO', updated);
+                  logInfo('PROVINCIA_FINAL', {
+                    original: prev.provincia,
+                    recargada: refreshData.provincia,
+                    final: updated.provincia
+                  });
+                  
+                  return updated;
+                });
               }
             }
           } catch (refreshErr) {
-            console.error("Error al intentar recargar datos:", refreshErr);
+            logError('RECARGAR_DATOS_EXCEPCION', refreshErr);
           }
         } catch (facturacionError: any) {
-          console.error('Error con tabla datos_facturacion:', facturacionError);
+          logError('ERROR_FACTURACION', facturacionError);
           
           if (facturacionError.message && facturacionError.message.includes('does not exist')) {
             setMensaje({
@@ -275,9 +365,7 @@ export default function FacturacionPage() {
               tipo: "error"
             });
             
-            console.error(`
-              INSTRUCCIONES PARA CREAR LA TABLA:
-              
+            logInfo('INSTRUCCIONES_CREAR_TABLA', `
               Accede a tu proyecto en Supabase y crea la tabla 'datos_facturacion' con los siguientes campos:
               - id: uuid (PRIMARY KEY)
               - usuario_id: uuid (FOREIGN KEY a usuarios.id)
@@ -286,6 +374,7 @@ export default function FacturacionPage() {
               - direccion: text
               - codigo_postal: text
               - ciudad: text
+              - provincia: text (¡asegúrate de incluir esta columna!)
               - pais: text
               - telefono: text
               - email_facturacion: text
@@ -296,14 +385,16 @@ export default function FacturacionPage() {
           }
         }
       } catch (err) {
-        console.error('Error general al actualizar datos de facturación:', err);
+        logError('ERROR_GENERAL', err);
         throw new Error('Error al actualizar datos de facturación');
       }
       
       // Éxito - actualizamos la interfaz
       const success = true;
+      logInfo('RESULTADO', 'Operación completada');
 
       if (success) {
+        logInfo('EXITO', 'Datos de facturación actualizados correctamente');
         setMensaje({
           texto: "Datos de facturación actualizados correctamente",
           tipo: "exito",
@@ -313,19 +404,22 @@ export default function FacturacionPage() {
         setTimeout(() => {
           setMensaje(null);
           // Recargar la página para mostrar los datos actualizados
+          logInfo('RECARGAR_PAGINA', 'Recargando página');
           window.location.reload();
         }, 1500);
       } else {
+        logError('ERROR_FINAL', new Error("Error al actualizar datos de facturación"));
         throw new Error("Error al actualizar datos de facturación");
       }
     } catch (error: any) {
-      console.error("Error al actualizar datos de facturación:", error.message || error);
+      logError('ERROR_GLOBAL', error);
       setMensaje({
         texto: "No se pudieron actualizar los datos de facturación. Por favor, intenta nuevamente.",
         tipo: "error",
       });
     } finally {
       setSaving(false);
+      logInfo('FIN_PROCESO', 'Proceso finalizado');
     }
   };
 
