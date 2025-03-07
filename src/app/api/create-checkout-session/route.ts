@@ -2,12 +2,28 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { supabase } from '@/lib/supabase';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-02-24.acacia',
-});
+// Check if STRIPE_SECRET_KEY is available
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeKey) {
+  console.warn('Missing STRIPE_SECRET_KEY environment variable');
+}
+
+// Initialize Stripe only if key is available
+const stripe = stripeKey 
+  ? new Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' }) 
+  : null;
 
 export async function POST(req: Request) {
   try {
+    // Check if Stripe is initialized
+    if (!stripe) {
+      console.error('Stripe is not initialized - missing API key');
+      return NextResponse.json(
+        { error: 'Stripe configuration is missing' },
+        { status: 500 }
+      );
+    }
+    
     const { priceId, userId, tipoMembresiaId } = await req.json();
 
     // Verificar que los datos necesarios estén presentes

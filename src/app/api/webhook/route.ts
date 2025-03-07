@@ -2,9 +2,16 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { supabase } from '@/lib/supabase';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-02-24.acacia',
-});
+// Check if STRIPE_SECRET_KEY is available
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeKey) {
+  console.warn('Missing STRIPE_SECRET_KEY environment variable in webhook route');
+}
+
+// Initialize Stripe only if key is available
+const stripe = stripeKey 
+  ? new Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' }) 
+  : null;
 
 // Esta función necesita estar marcada como tal para aceptar el body sin parsear
 export const config = {
@@ -43,17 +50,43 @@ export async function POST(req: Request) {
   if (req.method !== 'POST') {
     return NextResponse.json({ message: 'Método no permitido' }, { status: 405 });
   }
+  
+  // Check if Stripe is initialized
+  if (!stripe) {
+    console.error('Stripe is not initialized in webhook - missing API key');
+    return NextResponse.json(
+      { error: 'Stripe configuration is missing' },
+      { status: 500 }
+    );
+  }
 
   const buf = await buffer(req.body as unknown as ReadableStream);
-  const signature = req.headers.get('stripe-signature')!;
+  const signature = req.headers.get('stripe-signature');
+  
+  if (!signature) {
+    console.error('Missing stripe-signature header');
+    return NextResponse.json(
+      { error: 'Missing signature header' },
+      { status: 400 }
+    );
+  }
 
   let event: Stripe.Event;
 
   try {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error('Missing STRIPE_WEBHOOK_SECRET environment variable');
+      return NextResponse.json(
+        { error: 'Webhook secret is not configured' },
+        { status: 500 }
+      );
+    }
+    
     event = stripe.webhooks.constructEvent(
       buf.toString(),
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      webhookSecret
     );
   } catch (err) {
     const error = err as Error;

@@ -61,6 +61,21 @@ npm run build
 npm start
 ```
 
+## Despliegue en Vercel
+
+Para desplegar correctamente la aplicación en Vercel, asegúrate de configurar las siguientes variables de entorno en el panel de configuración del proyecto:
+
+1. Ve a tu proyecto en el dashboard de Vercel
+2. Navega a Settings > Environment Variables
+3. Añade las siguientes variables:
+   - `STRIPE_SECRET_KEY` - Tu clave secreta de Stripe
+   - `STRIPE_WEBHOOK_SECRET` - El secreto del webhook de Stripe
+   - `NEXT_PUBLIC_SUPABASE_URL` - URL de tu proyecto Supabase
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Clave anónima de Supabase
+   - `NEXT_PUBLIC_APP_URL` - URL de tu aplicación desplegada
+
+**Importante**: Sin estas variables, la build fallará durante el despliegue.
+
 ## Estructura del Proyecto
 
 - `/src/app` - Rutas y páginas de Next.js
