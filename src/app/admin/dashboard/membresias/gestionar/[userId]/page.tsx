@@ -189,48 +189,39 @@ export default function GestionarMembresia() {
         console.log("Membresías anteriores desactivadas correctamente");
       }
       
-      // 1. Crear registro de membresía
+      // 1. Crear registro de membresía usando la API para evitar problemas con RLS
       console.log("Creando registro de membresía con:", {
-        usuario_id: userId,
-        tipo_membresia_id: membresiaSeleccionada,
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin.toISOString(),
+        userId: userId,
+        tipoMembresiaId: membresiaSeleccionada,
+        fechaInicio: fechaInicio,
+        fechaFin: fechaFin.toISOString(),
         estado: "activa"
       });
       
-      const { data: membresia, error: membresiaError } = await supabase
-        .from("membresias_usuarios")
-        .insert({
-          usuario_id: userId,
-          tipo_membresia_id: membresiaSeleccionada,
-          fecha_inicio: fechaInicio,
-          fecha_fin: fechaFin.toISOString(),
+      // Usar la API de creación de membresía que usa el service role key
+      const response = await fetch('/api/create-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          tipoMembresiaId: membresiaSeleccionada,
+          fechaInicio: fechaInicio,
+          fechaFin: fechaFin.toISOString(),
           estado: "activa"
-        })
-        .select()
-        .single();
-        
-      if (membresiaError) {
-        console.error("Error al insertar membresía:", membresiaError);
-        throw new Error(membresiaError.message || "Error al crear la membresía");
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        console.error("Error al crear membresía a través de la API:", result.error);
+        throw new Error(result.error || "Error al crear la membresía");
       }
       
-      if (!membresia) {
-        throw new Error("No se pudo crear la membresía: no se devolvieron datos");
-      }
-      
-      console.log("Membresía creada correctamente:", membresia);
-      
-      // 2. Actualizar el usuario para establecer esta membresía como la activa
-      const { error: updateError } = await supabase
-        .from("usuarios")
-        .update({ membresia_activa_id: membresia.id })
-        .eq("id", userId);
-        
-      if (updateError) {
-        console.error("Error al actualizar usuario con membresía:", updateError);
-        throw new Error(updateError.message || "Error al actualizar el usuario");
-      }
+      const membresia = result.membresia;
+      console.log("Membresía creada correctamente a través de la API:", membresia);
       
       // Notificar al usuario por email - ahora lo hacemos mediante una API
       if (usuario.email) {
@@ -424,9 +415,27 @@ export default function GestionarMembresia() {
                     <div key={tipo.id}>
                       <p className="text-sm text-gray-600 mb-2">{tipo.descripcion}</p>
                       <ul className="space-y-1 text-sm text-gray-600">
-                        <li>• Proveedores: {tipo.limite_proveedores ? tipo.limite_proveedores : 'Ilimitados'}</li>
-                        <li>• Artículos: {tipo.limite_articulos ? tipo.limite_articulos : 'Ilimitados'}</li>
-                        <li>• Listas: {tipo.limite_listas ? tipo.limite_listas : 'Ilimitadas'}</li>
+                        <li>• Proveedores: {
+                          tipo.nombre === "Plan Gratuito" 
+                            ? "Hasta 5" 
+                            : (tipo.limite_proveedores ? tipo.limite_proveedores : 'Ilimitados')
+                        }</li>
+                        <li>• Artículos: {
+                          tipo.nombre === "Plan Gratuito" 
+                            ? "Hasta 20" 
+                            : (tipo.limite_articulos ? tipo.limite_articulos : 'Ilimitados')
+                        }</li>
+                        <li>• Listas: {
+                          tipo.nombre === "Plan Gratuito" 
+                            ? "Hasta 3" 
+                            : (tipo.limite_listas ? tipo.limite_listas : 'Ilimitadas')
+                        }</li>
+                        {tipo.nombre === "Plan Gratuito" && (
+                          <li className="text-amber-600">• Sin soporte para escaneo de documentos</li>
+                        )}
+                        {tipo.nombre !== "Plan Gratuito" && (
+                          <li className="text-green-600">• Soporte técnico prioritario</li>
+                        )}
                       </ul>
                     </div>
                   ))}
