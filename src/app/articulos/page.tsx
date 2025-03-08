@@ -155,7 +155,7 @@ export default function ArticulosPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Artículos</h1>
 
-          <div className="mt-4 sm:mt-0">
+          <div className="mt-4 sm:mt-0 flex space-x-2">
             <Link
               href="/articulos/nuevo"
               className={`px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
@@ -171,6 +171,16 @@ export default function ArticulosPage() {
               }}
             >
               Nuevo Artículo
+            </Link>
+            
+            <Link
+              href="/articulos/escanear-factura"
+              className="px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+              Escanear Factura
             </Link>
           </div>
         </div>

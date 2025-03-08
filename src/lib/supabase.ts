@@ -15,28 +15,7 @@ export async function verificarLimiteAlcanzado(
 ) {
   console.log(`Verificando límite de ${tipo} para usuario ${userId}`); // Log para verificar
   
-  // Forzar un límite muy bajo para pruebas (eliminar en producción)
-  if (tipo === "listas") {
-    console.log("OVERRIDE: Forzando verificación limitada para listas");
-    
-    // Contar listas actuales
-    const { count, error: countError } = await supabase
-      .from("listas_compra")
-      .select("*", { count: "exact", head: true })
-      .eq("usuario_id", userId);
-    
-    if (countError) {
-      console.error("Error al contar listas:", countError);
-      return true; // En caso de error, restringir por seguridad
-    }
-    
-    console.log(`Usuario tiene ${count} listas, límite forzado: 3`);
-    const excedido = count !== null && count >= 3;
-    console.log(`Límite excedido: ${excedido}`);
-    
-    // Límite bajo para pruebas: solo 3 listas
-    return excedido;
-  }
+  // Código de límite forzado eliminado - Ya no forzamos un límite bajo para pruebas
   try {
     // 1. Obtener la membresía activa del usuario
     const { data: userData, error: userError } = await supabase

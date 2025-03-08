@@ -18,6 +18,7 @@ interface FormData {
   limite_articulos: string;
   limite_listas: string;
   descripcion: string;
+  tiene_ai: boolean;
 }
 
 interface MembresiaData {
@@ -28,6 +29,7 @@ interface MembresiaData {
   limite_articulos: number | null;
   limite_listas: number | null;
   descripcion: string | null;
+  tiene_ai: boolean;
 }
 
 export default function NuevaMembresiaPage() {
@@ -40,6 +42,7 @@ export default function NuevaMembresiaPage() {
     limite_articulos: "",
     limite_listas: "",
     descripcion: "",
+    tiene_ai: false,
   });
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
@@ -49,8 +52,13 @@ export default function NuevaMembresiaPage() {
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target as HTMLInputElement;
+    
+    if (type === 'checkbox') {
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,6 +104,7 @@ export default function NuevaMembresiaPage() {
           ? parseInt(formData.limite_listas)
           : null,
         descripcion: formData.descripcion.trim() || null,
+        tiene_ai: formData.tiene_ai,
       };
 
       // Insertar en la base de datos
@@ -248,6 +257,22 @@ export default function NuevaMembresiaPage() {
                 onChange={handleInputChange}
                 placeholder="Describe las características de este plan"
               ></textarea>
+            </div>
+
+            <div className="col-span-2">
+              <div className="flex items-center">
+                <input
+                  id="tiene_ai"
+                  name="tiene_ai"
+                  type="checkbox"
+                  checked={formData.tiene_ai}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="tiene_ai" className="ml-2 block text-sm text-gray-900">
+                  Incluye funciones de IA (escaneo de documentos, creación automática de productos y proveedores)
+                </label>
+              </div>
             </div>
           </div>
 

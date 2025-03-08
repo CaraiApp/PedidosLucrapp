@@ -31,7 +31,8 @@ export default function EditarMembresia() {
     limite_proveedores: null,
     limite_articulos: null,
     limite_listas: null,
-    stripe_price_id: ""
+    stripe_price_id: "",
+    tiene_ai: false
     // Eliminado: es_destacado: false - No existe en la base de datos
   });
 
@@ -64,7 +65,8 @@ export default function EditarMembresia() {
           limite_proveedores: data.limite_proveedores,
           limite_articulos: data.limite_articulos,
           limite_listas: data.limite_listas,
-          stripe_price_id: data.stripe_price_id || ""
+          stripe_price_id: data.stripe_price_id || "",
+          tiene_ai: data.tiene_ai || false
           // Eliminado: es_destacado: data.es_destacado || false - No existe en la base de datos
         };
 
@@ -158,7 +160,8 @@ export default function EditarMembresia() {
         limite_proveedores: membresia.limite_proveedores,
         limite_articulos: membresia.limite_articulos,
         limite_listas: membresia.limite_listas,
-        stripe_price_id: membresia.stripe_price_id || null
+        stripe_price_id: membresia.stripe_price_id || null,
+        tiene_ai: membresia.tiene_ai || false
         // Eliminado: es_destacado: !!membresia.es_destacado
       };
       
@@ -381,6 +384,22 @@ export default function EditarMembresia() {
                 min="0"
                 fullWidth
               />
+            </div>
+          </div>
+
+          <div className="mt-4 mb-6">
+            <div className="flex items-center">
+              <input
+                id="tiene_ai"
+                name="tiene_ai"
+                type="checkbox"
+                checked={membresia.tiene_ai}
+                onChange={(e) => setMembresia({...membresia, tiene_ai: e.target.checked})}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label htmlFor="tiene_ai" className="ml-2 block text-sm text-gray-900">
+                Incluye funciones de IA (escaneo de documentos, creación automática de productos y proveedores)
+              </label>
             </div>
           </div>
 

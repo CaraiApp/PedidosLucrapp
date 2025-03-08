@@ -15,6 +15,7 @@ export default function NuevoProveedorPage() {
   const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
   const [formData, setFormData] = useState({
     nombre: "",
+    cif: "",
     email: "",
     telefono: "",
     contacto: "",
@@ -97,6 +98,7 @@ export default function NuevoProveedorPage() {
       const proveedorData = {
         usuario_id: sessionData.session.user.id,
         nombre: formData.nombre.trim(),
+        cif: formData.cif.trim() || null,
         email: formData.email.trim() || null,
         telefono: formData.telefono.trim() || null,
         contacto: formData.contacto.trim() || null, // Usamos la columna contacto
@@ -174,6 +176,24 @@ export default function NuevoProveedorPage() {
                     value={formData.nombre}
                     onChange={handleInputChange}
                     required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="cif"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    CIF/NIF
+                  </label>
+                  <input
+                    type="text"
+                    id="cif"
+                    name="cif"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    value={formData.cif}
+                    onChange={handleInputChange}
+                    placeholder="B12345678"
                   />
                 </div>
 

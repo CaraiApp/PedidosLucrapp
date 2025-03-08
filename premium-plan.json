@@ -1,0 +1,11 @@
+{
+  "nombre": "Plan Premium (IA)",
+  "precio": 50,
+  "duracion_meses": 1,
+  "limite_proveedores": 0,
+  "limite_articulos": 0,
+  "limite_listas": 0,
+  "descripcion": "Plan premium con funcionalidades de IA para escaneo de documentos y creación automática de productos y proveedores.",
+  "stripe_price_id": "price_1R0MpDAMTKzwB6wRqKNS7BIK",
+  "tiene_ai": true
+}

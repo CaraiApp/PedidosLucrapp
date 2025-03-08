@@ -1,11 +1,11 @@
 // src/app/dashboard/components/DashboardStats.tsx
 "use client";
 
-import { useEstadisticas } from '@/hooks/useEstadisticas';
-import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
-import Loading from '@/components/ui/Loading';
-import Link from 'next/link';
+import { useEstadisticas } from "@/hooks/useEstadisticas";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Loading from "@/components/ui/Loading";
+import Link from "next/link";
 
 export default function DashboardStats() {
   const { estadisticas, loading, error } = useEstadisticas();
@@ -26,7 +26,7 @@ export default function DashboardStats() {
 
   // Función para formatear límite (mostrar "Ilimitado" si es 0)
   const formatearLimite = (limite: number) => {
-    return limite === 0 ? '∞' : limite;
+    return limite === 0 ? "∞" : limite;
   };
 
   return (
@@ -61,7 +61,9 @@ export default function DashboardStats() {
                   <dd>
                     <div className="text-lg font-medium text-gray-900">
                       {estadisticas.totalProveedores} /{" "}
-                      {formatearLimite(estadisticas.membresia.limiteProveedores)}
+                      {formatearLimite(
+                        estadisticas.membresia.limiteProveedores
+                      )}
                     </div>
                   </dd>
                 </dl>
@@ -154,7 +156,8 @@ export default function DashboardStats() {
                   </dt>
                   <dd>
                     <div className="text-lg font-medium text-gray-900">
-                      {estadisticas.totalListas} / {formatearLimite(estadisticas.membresia.limiteListas)}
+                      {estadisticas.totalListas} /{" "}
+                      {formatearLimite(estadisticas.membresia.limiteListas)}
                     </div>
                   </dd>
                 </dl>
@@ -164,7 +167,7 @@ export default function DashboardStats() {
           <div className="bg-gray-50 px-5 py-3">
             <div className="text-sm">
               <Link
-                href="/listas"
+                href="/listas-compra"
                 className="font-medium text-indigo-600 hover:text-indigo-900"
               >
                 Ver todas
@@ -226,10 +229,12 @@ export default function DashboardStats() {
           {/* Proveedores */}
           <div>
             <div className="flex justify-between mb-1">
-              <span className="text-sm font-medium text-gray-700">Proveedores</span>
+              <span className="text-sm font-medium text-gray-700">
+                Proveedores
+              </span>
               <span className="text-sm font-medium text-gray-700">
                 {estadisticas.membresia.limiteProveedores === 0
-                  ? 'Ilimitado'
+                  ? "Ilimitado"
                   : `${estadisticas.totalProveedores}/${estadisticas.membresia.limiteProveedores}`}
               </span>
             </div>
@@ -237,9 +242,20 @@ export default function DashboardStats() {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`${getColorByPercentage(
-                    calcularPorcentaje(estadisticas.totalProveedores, estadisticas.membresia.limiteProveedores)
+                    calcularPorcentaje(
+                      estadisticas.totalProveedores,
+                      estadisticas.membresia.limiteProveedores
+                    )
                   )} h-2 rounded-full`}
-                  style={{ width: `${Math.min(calcularPorcentaje(estadisticas.totalProveedores, estadisticas.membresia.limiteProveedores), 100)}%` }}
+                  style={{
+                    width: `${Math.min(
+                      calcularPorcentaje(
+                        estadisticas.totalProveedores,
+                        estadisticas.membresia.limiteProveedores
+                      ),
+                      100
+                    )}%`,
+                  }}
                 ></div>
               </div>
             )}
@@ -248,10 +264,12 @@ export default function DashboardStats() {
           {/* Artículos */}
           <div>
             <div className="flex justify-between mb-1">
-              <span className="text-sm font-medium text-gray-700">Artículos</span>
+              <span className="text-sm font-medium text-gray-700">
+                Artículos
+              </span>
               <span className="text-sm font-medium text-gray-700">
                 {estadisticas.membresia.limiteArticulos === 0
-                  ? 'Ilimitado'
+                  ? "Ilimitado"
                   : `${estadisticas.totalArticulos}/${estadisticas.membresia.limiteArticulos}`}
               </span>
             </div>
@@ -259,9 +277,20 @@ export default function DashboardStats() {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`${getColorByPercentage(
-                    calcularPorcentaje(estadisticas.totalArticulos, estadisticas.membresia.limiteArticulos)
+                    calcularPorcentaje(
+                      estadisticas.totalArticulos,
+                      estadisticas.membresia.limiteArticulos
+                    )
                   )} h-2 rounded-full`}
-                  style={{ width: `${Math.min(calcularPorcentaje(estadisticas.totalArticulos, estadisticas.membresia.limiteArticulos), 100)}%` }}
+                  style={{
+                    width: `${Math.min(
+                      calcularPorcentaje(
+                        estadisticas.totalArticulos,
+                        estadisticas.membresia.limiteArticulos
+                      ),
+                      100
+                    )}%`,
+                  }}
                 ></div>
               </div>
             )}
@@ -270,10 +299,12 @@ export default function DashboardStats() {
           {/* Listas */}
           <div>
             <div className="flex justify-between mb-1">
-              <span className="text-sm font-medium text-gray-700">Listas de compra</span>
+              <span className="text-sm font-medium text-gray-700">
+                Listas de compra
+              </span>
               <span className="text-sm font-medium text-gray-700">
                 {estadisticas.membresia.limiteListas === 0
-                  ? 'Ilimitado'
+                  ? "Ilimitado"
                   : `${estadisticas.totalListas}/${estadisticas.membresia.limiteListas}`}
               </span>
             </div>
@@ -281,9 +312,20 @@ export default function DashboardStats() {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`${getColorByPercentage(
-                    calcularPorcentaje(estadisticas.totalListas, estadisticas.membresia.limiteListas)
+                    calcularPorcentaje(
+                      estadisticas.totalListas,
+                      estadisticas.membresia.limiteListas
+                    )
                   )} h-2 rounded-full`}
-                  style={{ width: `${Math.min(calcularPorcentaje(estadisticas.totalListas, estadisticas.membresia.limiteListas), 100)}%` }}
+                  style={{
+                    width: `${Math.min(
+                      calcularPorcentaje(
+                        estadisticas.totalListas,
+                        estadisticas.membresia.limiteListas
+                      ),
+                      100
+                    )}%`,
+                  }}
                 ></div>
               </div>
             )}
@@ -305,19 +347,18 @@ export default function DashboardStats() {
               Vencimiento:
             </span>
             <span className="text-sm text-gray-700">
-              {new Date(estadisticas.membresia.fechaFin).toLocaleDateString('es-ES', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
+              {new Date(estadisticas.membresia.fechaFin).toLocaleDateString(
+                "es-ES",
+                {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                }
+              )}
             </span>
           </div>
           <div className="mt-4 flex justify-end">
-            <Button 
-              href="/membresias" 
-              variant="outline" 
-              size="sm"
-            >
+            <Button href="/membresias" variant="outline" size="sm">
               Mejorar plan
             </Button>
           </div>
@@ -335,7 +376,7 @@ function calcularPorcentaje(usado: number, limite: number) {
 
 // Función para obtener el color según el porcentaje
 function getColorByPercentage(percentage: number) {
-  if (percentage >= 90) return 'bg-red-600';
-  if (percentage >= 70) return 'bg-yellow-500';
-  return 'bg-green-500';
+  if (percentage >= 90) return "bg-red-600";
+  if (percentage >= 70) return "bg-yellow-500";
+  return "bg-green-500";
 }

@@ -387,6 +387,11 @@ export default function MembresiasPage() {
                           ? `Hasta ${tipo.limite_listas} listas de compra`
                           : "Listas de compra ilimitadas"}
                       </li>
+                      {tipo.tiene_ai && (
+                        <li className="text-indigo-600 font-semibold">
+                          Escaneo de documentos con IA y creación automática de productos
+                        </li>
+                      )}
                       <li>Soporte por email</li>
                     </ul>
                   </div>

@@ -63,6 +63,7 @@ export interface TipoMembresia {
   orden?: number;
   activo?: boolean;
   stripe_price_id?: string;
+  tiene_ai?: boolean; // Indica si el plan tiene acceso a funciones de IA
   // Removido: es_destacado?: boolean; - No existe en la base de datos
 }
 
@@ -71,6 +72,7 @@ export interface Proveedor {
   id: string;
   usuario_id: string;
   nombre: string;
+  cif?: string;        // CIF/NIF/VAT del proveedor
   telefono?: string;
   email?: string;
   web?: string;
