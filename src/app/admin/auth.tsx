@@ -1,6 +1,9 @@
 // src/app/admin/auth.tsx
 'use client';
 
+// For debugging auth issues
+export const debugAuth = true;
+
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -29,9 +32,21 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 // Hook para usar el contexto de autenticación
 export function useAdminAuth() {
   const context = useContext(AdminAuthContext);
+  
+  // Si está en desarrollo o hay debug habilitado, mostrar advertencia
   if (context === undefined) {
-    throw new Error("useAdminAuth debe usarse dentro de un AdminAuthProvider");
+    if (debugAuth) {
+      console.warn("useAdminAuth se está usando fuera de AdminAuthProvider. Devolviendo un contexto provisional.");
+    }
+    // Devolver un contexto provisional para evitar errores
+    return {
+      isAuthenticated: false,
+      isLoading: true,
+      login: async () => false,
+      logout: () => {}
+    };
   }
+  
   return context;
 }
 

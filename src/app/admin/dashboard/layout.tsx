@@ -3,7 +3,7 @@
 
 import { ReactNode, useState } from "react";
 import Link from "next/link";
-import { AdminAuthProvider, useAdminAuth } from "../auth";
+import { useAdminAuth } from "../auth";
 import Button from "@/components/ui/Button";
 
 interface AdminLayoutProps {
@@ -349,13 +349,11 @@ function AdminDashboardLayout({ children }: AdminLayoutProps) {
   );
 }
 
-// Envolvemos el componente con el proveedor de autenticación
+// Ya tenemos el AdminAuthProvider en admin/layout.tsx
 export default function AdminLayoutWithAuth({ children }: AdminLayoutProps) {
   return (
-    <AdminAuthProvider>
-      <AdminDashboardLayout>
-        {children}
-      </AdminDashboardLayout>
-    </AdminAuthProvider>
+    <AdminDashboardLayout>
+      {children}
+    </AdminDashboardLayout>
   );
 }

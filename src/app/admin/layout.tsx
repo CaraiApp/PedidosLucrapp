@@ -1,13 +1,19 @@
-// Ensure dynamic rendering to avoid server-side errors
-export { dynamic } from './dynamic';
+'use client';
 
-// Server Component for admin layout
+// Ensure dynamic rendering to avoid server-side errors
+export const dynamic = 'force-dynamic';
+
+// Client Component for admin layout to ensure Auth provider works
+import { AdminAuthProvider } from "./auth";
+
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <>{children}</>
+    <AdminAuthProvider>
+      {children}
+    </AdminAuthProvider>
   );
 }

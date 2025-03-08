@@ -128,9 +128,7 @@ function AdminLoginForm() {
 
 // Contenedor con el proveedor de autenticación
 export default function AdminAccess() {
-  return (
-    <AdminAuthProvider>
-      <AdminLoginForm />
-    </AdminAuthProvider>
-  );
+  // Esta página ya está envuelta en el AdminAuthProvider gracias al layout
+  // Si añadimos otro provider aquí podría causar problemas
+  return <AdminLoginForm />;
 }
