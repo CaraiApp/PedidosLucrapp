@@ -20,6 +20,21 @@ const nextConfig: NextConfig = {
     // Ignorar errores de TS durante la compilación
     ignoreBuildErrors: true,
   },
+  // Configuración para ignorar errores de webpack
+  webpack: (config, { isServer }) => {
+    // Ignorar advertencias sobre módulos duplicados
+    config.optimization.moduleIds = 'named';
+    
+    // Ignorar advertencias específicas
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        crypto: false,
+      };
+    }
+    
+    return config;
+  },
   async rewrites() {
     return [
       {
