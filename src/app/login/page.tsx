@@ -18,6 +18,7 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const registroExitoso = searchParams.get("registro") === "exitoso";
   const resetExitoso = searchParams.get("reset") === "exitoso";
+  const verificado = searchParams.get("verificado") === "true";
   
   const [formData, setFormData] = useState({
     email: "",
@@ -38,6 +39,11 @@ function LoginContent() {
       setSuccessMessage("Contraseña restablecida correctamente. Ahora puedes iniciar sesión con tu nueva contraseña.");
     }
     
+    // Comprobar si el correo electrónico fue verificado
+    if (verificado) {
+      setSuccessMessage("Tu dirección de correo electrónico ha sido verificada correctamente. Ya puedes iniciar sesión.");
+    }
+    
     // Verificar si el usuario ya está autenticado
     const checkSession = async () => {
       try {
@@ -53,7 +59,7 @@ function LoginContent() {
     };
     
     checkSession();
-  }, [router, registroExitoso, resetExitoso]);
+  }, [router, registroExitoso, resetExitoso, verificado]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

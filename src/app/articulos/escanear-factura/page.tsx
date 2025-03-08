@@ -66,14 +66,29 @@ function EscanerFactura() {
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>("");
   const [guardando, setGuardando] = useState<boolean>(false);
   const [mostrandoCamara, setMostrandoCamara] = useState<boolean>(false);
+  const [verificandoAcceso, setVerificandoAcceso] = useState<boolean>(true);
+  const [tieneAccesoIA, setTieneAccesoIA] = useState<boolean>(false);
   
-  // Cargar proveedores al inicio
+  // Verificar acceso a IA y cargar proveedores al inicio
   useEffect(() => {
-    const cargarProveedores = async () => {
+    const inicializar = async () => {
       try {
-        // Verificar estado de sesión para debugging
+        setVerificandoAcceso(true);
+        
+        // 1. Verificar acceso a funciones de IA
+        const responseAcceso = await fetch("/api/verify-ai-access");
+        const datosAcceso = await responseAcceso.json();
+        
+        if (datosAcceso.success && datosAcceso.tieneAcceso) {
+          setTieneAccesoIA(true);
+        } else {
+          // Manejar el caso sin acceso a IA
+          setTieneAccesoIA(false);
+          setError(datosAcceso.error || "Tu plan actual no incluye funciones de IA. Actualiza a un plan con IA para usar esta característica.");
+        }
+        
+        // 2. Verificar estado de sesión para cargar proveedores
         const { data: sessionData } = await supabase.auth.getSession();
-        console.log("Estado de sesión al cargar:", sessionData?.session ? "Activa" : "Inactiva");
         
         if (sessionData?.session?.user?.id) {
           // Si hay sesión activa, cargar proveedores reales
@@ -88,39 +103,21 @@ function EscanerFactura() {
           }
             
           if (proveedores && proveedores.length > 0) {
-            console.log(`Se cargaron ${proveedores.length} proveedores`);
             setProveedoresDisponibles(proveedores);
-          } else {
-            console.log("No se encontraron proveedores para el usuario");
           }
         } else {
-          console.log("Sin sesión activa, usando proveedores de muestra");
-          // Proveedores de muestra para pruebas
-          setProveedoresDisponibles([
-            { 
-              id: 'test-1', 
-              nombre: 'Proveedor de Prueba 1',
-              cif: 'B12345678',
-              telefono: '123456789',
-              email: 'prueba1@ejemplo.com',
-              direccion: 'Calle de Prueba, 123'
-            },
-            { 
-              id: 'test-2', 
-              nombre: 'Proveedor de Prueba 2',
-              cif: 'A87654321',
-              telefono: '987654321',
-              email: 'prueba2@ejemplo.com',
-              direccion: 'Avenida de Prueba, 456'
-            }
-          ]);
+          // Sin sesión activa
+          setError("Debes iniciar sesión para usar esta función");
         }
       } catch (err) {
-        console.error("Error al cargar proveedores:", err);
+        console.error("Error al inicializar:", err);
+        setError("Error al verificar acceso a IA. Por favor, intenta nuevamente.");
+      } finally {
+        setVerificandoAcceso(false);
       }
     };
     
-    cargarProveedores();
+    inicializar();
     
     // Limpiar la cámara al desmontar el componente
     return () => {
@@ -231,10 +228,6 @@ function EscanerFactura() {
       // Crear FormData para enviar la imagen
       const formData = new FormData();
       formData.append("image", archivo);
-      
-      // Genera un ID de solicitud único para seguimiento
-      const requestId = `req-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      formData.append("requestId", requestId);
       
       console.log("Enviando solicitud a API de escaneo...");
       
@@ -405,154 +398,184 @@ function EscanerFactura() {
           </Link>
         </div>
 
+        {/* Mensajes de error */}
         {error && (
           <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             {error}
+            {!tieneAccesoIA && (
+              <div className="mt-2">
+                <Link href="/membresias" className="text-red-800 font-semibold underline">
+                  Actualizar a un plan con IA
+                </Link>
+              </div>
+            )}
           </div>
         )}
         
-        {/* Sección de captura */}
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">Seleccionar o Capturar Imagen</h2>
-          
-          {!imagenCapturada && !mostrandoCamara && (
-            <div className="flex flex-col md:flex-row gap-4 mb-4">
-              {/* Botones para seleccionar archivo o usar cámara */}
-              <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                {/* Input oculto para selección de archivos */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/*,application/pdf,.pdf"
-                  className="hidden"
-                  onChange={handleImagenChange}
-                />
-                
-                {/* Botón para seleccionar PDF */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Seleccionar PDF
-                </button>
-                
-                {/* Botón para usar la cámara */}
-                <button
-                  type="button"
-                  onClick={iniciarCamara}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Usar Cámara
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {/* Previsualización de la cámara */}
-          {mostrandoCamara && (
+        {verificandoAcceso ? (
+          <div className="bg-white shadow rounded-lg p-6 mb-6 text-center">
+            <Loading text="Verificando acceso a IA..." />
+          </div>
+        ) : !tieneAccesoIA ? (
+          <div className="bg-white shadow rounded-lg p-6 mb-6 text-center">
             <div className="mb-4">
-              <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
-                <video 
-                  ref={videoRef} 
-                  autoPlay 
-                  playsInline 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex justify-between gap-4">
-                <button 
-                  onClick={detenerCamara} 
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={capturarImagen} 
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                >
-                  Capturar
-                </button>
-              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
-          )}
-          
-          {/* Previsualización de la imagen */}
-          {imagenCapturada && (
-            <div className="mb-4">
-              <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '300px' }}>
-                {isPdf ? (
-                  <div className="text-center py-4 flex flex-col items-center h-full justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <h2 className="text-lg font-semibold mb-2">Función Premium</h2>
+            <p className="mb-4">Esta función requiere un plan con acceso a IA.</p>
+            <Link
+              href="/membresias"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            >
+              Ver planes disponibles
+            </Link>
+          </div>
+        ) : (
+          /* Sección de captura - solo visible si tiene acceso a IA */
+          <div className="bg-white shadow rounded-lg p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-4">Seleccionar o Capturar Imagen</h2>
+            
+            {!imagenCapturada && !mostrandoCamara && (
+              <div className="flex flex-col md:flex-row gap-4 mb-4">
+                {/* Botones para seleccionar archivo o usar cámara */}
+                <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                  {/* Input oculto para selección de archivos */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*,application/pdf,.pdf"
+                    className="hidden"
+                    onChange={handleImagenChange}
+                  />
+                  
+                  {/* Botón para seleccionar PDF */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <p className="text-gray-700 font-medium">{imagen?.name}</p>
-                    <p className="text-gray-500 text-sm mt-1">Documento PDF seleccionado</p>
-                  </div>
-                ) : (
-                  <img
-                    src={imagenCapturada}
-                    alt="Imagen capturada"
-                    className="w-full h-full object-contain"
-                  />
-                )}
+                    Seleccionar PDF
+                  </button>
+                  
+                  {/* Botón para usar la cámara */}
+                  <button
+                    type="button"
+                    onClick={iniciarCamara}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Usar Cámara
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between gap-4">
-                <button 
-                  onClick={reiniciarCaptura} 
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Nueva Captura
-                </button>
-                {loading ? (
+            )}
+          
+            {/* Previsualización de la cámara */}
+            {mostrandoCamara && (
+              <div className="mb-4">
+                <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex justify-between gap-4">
                   <button 
-                    disabled
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md opacity-50 cursor-not-allowed"
+                    onClick={detenerCamara} 
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                   >
-                    Procesando...
+                    Cancelar
                   </button>
-                ) : datosEscaneados ? (
                   <button 
-                    onClick={handleGuardarDatos} 
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  >
-                    Guardar Datos
-                  </button>
-                ) : (
-                  <button 
-                    onClick={() => procesarImagen(imagen!)} 
+                    onClick={capturarImagen} 
                     className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
                   >
-                    Procesar
+                    Capturar
                   </button>
-                )}
+                </div>
               </div>
-            </div>
-          )}
-          
-          {/* Consejos para mejores resultados */}
-          {!imagenCapturada && !mostrandoCamara && (
-            <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-md">
-              <h3 className="text-md font-medium mb-1">Consejos para mejores resultados:</h3>
-              <ul className="list-disc list-inside text-sm">
-                <li>Asegúrate de que la factura esté bien iluminada</li>
-                <li>Evita sombras o reflejos sobre el documento</li>
-                <li>Coloca la factura sobre una superficie plana</li>
-                <li>Mantén la cámara paralela al documento</li>
-                <li>Incluye todos los detalles importantes en la imagen</li>
-              </ul>
-            </div>
-          )}
-        </div>
+            )}
+            
+            {/* Previsualización de la imagen */}
+            {imagenCapturada && (
+              <div className="mb-4">
+                <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '300px' }}>
+                  {isPdf ? (
+                    <div className="text-center py-4 flex flex-col items-center h-full justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-gray-700 font-medium">{imagen?.name}</p>
+                      <p className="text-gray-500 text-sm mt-1">Documento PDF seleccionado</p>
+                    </div>
+                  ) : (
+                    <img
+                      src={imagenCapturada}
+                      alt="Imagen capturada"
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+                <div className="flex justify-between gap-4">
+                  <button 
+                    onClick={reiniciarCaptura} 
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    Nueva Captura
+                  </button>
+                  {loading ? (
+                    <button 
+                      disabled
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md opacity-50 cursor-not-allowed"
+                    >
+                      Procesando...
+                    </button>
+                  ) : datosEscaneados ? (
+                    <button 
+                      onClick={handleGuardarDatos} 
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                    >
+                      Guardar Datos
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => procesarImagen(imagen!)} 
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                    >
+                      Procesar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Consejos para mejores resultados */}
+            {!imagenCapturada && !mostrandoCamara && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-md">
+                <h3 className="text-md font-medium mb-1">Consejos para mejores resultados:</h3>
+                <ul className="list-disc list-inside text-sm">
+                  <li>Asegúrate de que la factura esté bien iluminada</li>
+                  <li>Evita sombras o reflejos sobre el documento</li>
+                  <li>Coloca la factura sobre una superficie plana</li>
+                  <li>Mantén la cámara paralela al documento</li>
+                  <li>Incluye todos los detalles importantes en la imagen</li>
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
-        {loading && (
+        {loading && tieneAccesoIA && (
           <div className="bg-white shadow rounded-lg p-6 mb-6 text-center">
             <Loading text="Procesando documento con IA..." />
             <p className="text-center text-gray-600 mt-2">
@@ -561,7 +584,7 @@ function EscanerFactura() {
           </div>
         )}
 
-        {datosEscaneados && (
+        {datosEscaneados && tieneAccesoIA && (
           <div className="bg-white shadow rounded-lg p-6 mb-6">
             <h2 className="text-lg font-semibold mb-4">Resultados del Escaneo</h2>
             

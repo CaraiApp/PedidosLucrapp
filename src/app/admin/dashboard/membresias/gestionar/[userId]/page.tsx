@@ -174,10 +174,25 @@ export default function GestionarMembresia() {
       
       console.log(`Asignando membresía ${tipoMembresia.nombre} por ${duracion} meses`);
       
+      // 0. Primero desactivamos todas las membresías activas del usuario
+      console.log("Desactivando membresías activas anteriores...");
+      const { error: desactivarError } = await supabase
+        .from("membresias_usuarios")
+        .update({ estado: "inactiva" })
+        .eq("usuario_id", userId)
+        .eq("estado", "activa");
+        
+      if (desactivarError) {
+        console.warn("Error al desactivar membresías anteriores:", desactivarError);
+        // Continuamos aunque haya error, no es crítico
+      } else {
+        console.log("Membresías anteriores desactivadas correctamente");
+      }
+      
       // 1. Crear registro de membresía
       console.log("Creando registro de membresía con:", {
         usuario_id: userId,
-        tipo_membresia_id: membresiaSeleccionada, // Corregido: usar tipo_membresia_id en lugar de membresia_id
+        tipo_membresia_id: membresiaSeleccionada,
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin.toISOString(),
         estado: "activa"
@@ -187,7 +202,7 @@ export default function GestionarMembresia() {
         .from("membresias_usuarios")
         .insert({
           usuario_id: userId,
-          tipo_membresia_id: membresiaSeleccionada, // Corregido: usar tipo_membresia_id que coincide con el esquema
+          tipo_membresia_id: membresiaSeleccionada,
           fecha_inicio: fechaInicio,
           fecha_fin: fechaFin.toISOString(),
           estado: "activa"

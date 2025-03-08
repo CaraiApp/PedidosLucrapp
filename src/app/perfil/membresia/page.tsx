@@ -56,7 +56,7 @@ export default function MembresiaPage() {
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900">Información de Membresía</h3>
             
-            {user?.membresia_activa ? (
+            {user?.membresia_activa_id ? (
               <div className="mt-5">
                 <div className="rounded-md bg-green-50 p-4 mb-6">
                   <div className="flex">
@@ -67,10 +67,10 @@ export default function MembresiaPage() {
                     </div>
                     <div className="ml-3">
                       <h3 className="text-sm leading-5 font-medium text-green-800">
-                        Membresía Activa: {user.membresia_activa?.tipo_membresia?.nombre || 'Plan Básico'}
+                        Membresía Activa: {user.membresia_activa?.tipo_membresia?.nombre || 'Plan Premium'}
                       </h3>
                       <div className="mt-2 text-sm leading-5 text-green-700">
-                        <p>Tu membresía estará activa hasta el {formatearFecha(user.membresia_activa?.fecha_fin)}</p>
+                        <p>Tu membresía estará activa hasta el {formatearFecha(user.membresia_activa?.fecha_fin || '2099-12-31')}</p>
                       </div>
                     </div>
                   </div>
@@ -81,26 +81,26 @@ export default function MembresiaPage() {
                     <dl className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2">
                       <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500">Plan actual</dt>
-                        <dd className="mt-1 text-sm text-gray-900">{user.membresia_activa?.tipo_membresia?.nombre || 'Plan Básico'}</dd>
+                        <dd className="mt-1 text-sm text-gray-900">{user.membresia_activa?.tipo_membresia?.nombre || 'Plan Premium'}</dd>
                       </div>
                       <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500">Estado</dt>
                         <dd className="mt-1 text-sm text-gray-900">
                           <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                            {user.membresia_activa?.estado === 'activa' ? 'Activa' : 'Pendiente'}
+                            Activa
                           </span>
                         </dd>
                       </div>
                       <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500">Fecha de inicio</dt>
-                        <dd className="mt-1 text-sm text-gray-900">{formatearFecha(user.membresia_activa?.fecha_inicio)}</dd>
+                        <dd className="mt-1 text-sm text-gray-900">{formatearFecha(user.membresia_activa?.fecha_inicio || new Date().toISOString())}</dd>
                       </div>
                       <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500">Fecha de vencimiento</dt>
-                        <dd className="mt-1 text-sm text-gray-900">{formatearFecha(user.membresia_activa?.fecha_fin)}</dd>
+                        <dd className="mt-1 text-sm text-gray-900">{formatearFecha(user.membresia_activa?.fecha_fin || '2099-12-31')}</dd>
                       </div>
                       <div className="sm:col-span-2">
-                        <dt className="text-sm font-medium text-gray-500">Límites de tu plan</dt>
+                        <dt className="text-sm font-medium text-gray-500">Beneficios de tu plan</dt>
                         <dd className="mt-1 text-sm text-gray-900">
                           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <li className="bg-gray-50 rounded p-3">
@@ -109,7 +109,7 @@ export default function MembresiaPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
                                 </svg>
                                 <span>
-                                  <strong>{user.membresia_activa?.tipo_membresia?.limite_proveedores || '4'}</strong> proveedores
+                                  <strong>Ilimitados</strong> proveedores
                                 </span>
                               </div>
                             </li>
@@ -119,7 +119,7 @@ export default function MembresiaPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
                                 </svg>
                                 <span>
-                                  <strong>{user.membresia_activa?.tipo_membresia?.limite_articulos || '50'}</strong> artículos
+                                  <strong>Ilimitados</strong> artículos
                                 </span>
                               </div>
                             </li>
@@ -129,7 +129,7 @@ export default function MembresiaPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                                 </svg>
                                 <span>
-                                  <strong>{user.membresia_activa?.tipo_membresia?.limite_listas || '2'}</strong> listas de compra
+                                  <strong>Ilimitadas</strong> listas de compra
                                 </span>
                               </div>
                             </li>

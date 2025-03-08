@@ -118,6 +118,9 @@ export default function Register() {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: {
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://pedidos.lucrapp.com'}/login?verificado=true`,
+        }
       });
 
       if (authError) throw authError;

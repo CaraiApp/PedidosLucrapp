@@ -35,21 +35,40 @@ export function useAuth() {
           return;
         }
         
-        // Obtener datos del usuario desde la tabla personalizada
+        // Obtener datos del usuario básicos primero
         const { data: userData, error: userError } = await supabase
           .from('usuarios')
-          .select(`
-            *,
-            membresia_activa: membresias_usuarios!left(
-              id,
-              tipo_membresia:membresia_tipos(*),
-              fecha_inicio,
-              fecha_fin,
-              estado
-            )
-          `)
+          .select('*')
           .eq('id', sessionData.session.user.id)
           .single();
+          
+        // Si obtenemos el usuario correctamente, intentamos obtener su membresía activa
+        if (!userError && userData) {
+          if (userData.membresia_activa_id) {
+            // Obtener la membresía activa del usuario
+            const { data: membresiaData, error: membresiaError } = await supabase
+              .from('membresias_usuarios')
+              .select(`
+                id,
+                tipo_membresia:membresia_tipos(*),
+                fecha_inicio,
+                fecha_fin,
+                estado
+              `)
+              .eq('id', userData.membresia_activa_id)
+              .single();
+              
+            if (!membresiaError && membresiaData) {
+              // Agregar la membresía al objeto de usuario
+              userData.membresia_activa = membresiaData;
+            } else {
+              console.log('No se pudo cargar la membresía activa:', membresiaError);
+              userData.membresia_activa = null;
+            }
+          } else {
+            userData.membresia_activa = null;
+          }
+        }
           
         if (userError) {
           console.error('Error al obtener datos del usuario:', userError);
@@ -384,22 +403,38 @@ export function useAuth() {
       
       // Recargar datos del usuario para asegurar que tenemos la información actualizada
       try {
+        // Obtener datos básicos del usuario
         const { data: refreshedUser, error: refreshError } = await supabase
           .from('usuarios')
-          .select(`
-            *,
-            membresia_activa: membresias_usuarios!left(
+          .select('*')
+          .eq('id', state.user.id)
+          .single();
+          
+        if (refreshError) throw refreshError;
+        
+        // Si el usuario tiene una membresía activa, obtenerla
+        if (refreshedUser.membresia_activa_id) {
+          const { data: membresiaData, error: membresiaError } = await supabase
+            .from('membresias_usuarios')
+            .select(`
               id,
               tipo_membresia:membresia_tipos(*),
               fecha_inicio,
               fecha_fin,
               estado
-            )
-          `)
-          .eq('id', state.user.id)
-          .single();
-          
-        if (refreshError) throw refreshError;
+            `)
+            .eq('id', refreshedUser.membresia_activa_id)
+            .single();
+            
+          if (!membresiaError && membresiaData) {
+            // Agregar la membresía al objeto de usuario
+            refreshedUser.membresia_activa = membresiaData;
+          } else {
+            refreshedUser.membresia_activa = null;
+          }
+        } else {
+          refreshedUser.membresia_activa = null;
+        }
         
         // Actualizar estado con los datos frescos del usuario
         setState({
