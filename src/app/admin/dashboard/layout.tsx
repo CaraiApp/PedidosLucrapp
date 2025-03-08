@@ -353,7 +353,9 @@ function AdminDashboardLayout({ children }: AdminLayoutProps) {
 export default function AdminLayoutWithAuth({ children }: AdminLayoutProps) {
   return (
     <AdminAuthProvider>
-      <AdminDashboardLayout children={children} />
+      <AdminDashboardLayout>
+        {children}
+      </AdminDashboardLayout>
     </AdminAuthProvider>
   );
 }
