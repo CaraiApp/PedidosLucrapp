@@ -17,12 +17,17 @@ export async function middleware(req: NextRequest) {
     (req.nextUrl.pathname.startsWith("/dashboard") ||
       req.nextUrl.pathname.startsWith("/proveedores") ||
       req.nextUrl.pathname.startsWith("/articulos") ||
-      req.nextUrl.pathname.startsWith("/listas") ||
+      req.nextUrl.pathname.startsWith("/listas-compra") ||
       req.nextUrl.pathname.startsWith("/membresias"))
   ) {
+    // Crear la URL de redirección al login
     const redirectUrl = new URL("/login", req.url);
-    // Añadir el parámetro de redirección
-    redirectUrl.searchParams.set("redirectTo", req.nextUrl.pathname);
+    
+    // Guardar la URL original para redirección después del login
+    if (req.nextUrl.pathname) {
+      redirectUrl.searchParams.set("redirectTo", req.nextUrl.pathname);
+    }
+    
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -45,7 +50,7 @@ export const config = {
     "/dashboard/:path*",
     "/proveedores/:path*",
     "/articulos/:path*",
-    "/listas/:path*",
+    "/listas-compra/:path*",
     "/membresias/:path*",
     "/login",
     "/register",

@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '2mb',
     },
   },
+  // Configuración para redirecciones de página para rutas dinámicas
+  trailingSlash: false,
+  // Forzar páginas dinámicas en build time
+  dynamicPageOptions: {
+    isDynamic: true,
+  },
   // Esta es una configuración importante para evitar problemas con la compilación
   typescript: {
     // Ignorar errores de TS durante la compilación

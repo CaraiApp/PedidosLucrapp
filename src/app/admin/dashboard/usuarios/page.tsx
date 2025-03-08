@@ -315,6 +315,11 @@ export default function GestionUsuarios() {
                         <a
                           href={`/admin/dashboard/usuarios/${usuario.id}`}
                           className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 mr-2"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            // Navegación manual para evitar problemas con rutas dinámicas
+                            window.location.href = `/admin/dashboard/usuarios/${usuario.id}`;
+                          }}
                         >
                           Ver perfil
                         </a>
