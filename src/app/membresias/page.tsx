@@ -323,21 +323,27 @@ export default function MembresiasPage() {
                   <ul className="list-disc pl-5">
                     <li>
                       Proveedores:{" "}
-                      {membresiaActual.tipo_membresia.limite_proveedores
-                        ? membresiaActual.tipo_membresia.limite_proveedores
-                        : "Ilimitados"}
+                      {membresiaActual.tipo_membresia.nombre === "Plan Gratuito"
+                        ? "Hasta 5"
+                        : (membresiaActual.tipo_membresia.limite_proveedores
+                            ? membresiaActual.tipo_membresia.limite_proveedores
+                            : "Ilimitados")}
                     </li>
                     <li>
                       Artículos:{" "}
-                      {membresiaActual.tipo_membresia.limite_articulos
-                        ? membresiaActual.tipo_membresia.limite_articulos
-                        : "Ilimitados"}
+                      {membresiaActual.tipo_membresia.nombre === "Plan Gratuito"
+                        ? "Hasta 20"
+                        : (membresiaActual.tipo_membresia.limite_articulos
+                            ? membresiaActual.tipo_membresia.limite_articulos
+                            : "Ilimitados")}
                     </li>
                     <li>
                       Listas de compra:{" "}
-                      {membresiaActual.tipo_membresia.limite_listas
-                        ? membresiaActual.tipo_membresia.limite_listas
-                        : "Ilimitadas"}
+                      {membresiaActual.tipo_membresia.nombre === "Plan Gratuito"
+                        ? "Hasta 3"
+                        : (membresiaActual.tipo_membresia.limite_listas
+                            ? membresiaActual.tipo_membresia.limite_listas
+                            : "Ilimitadas")}
                     </li>
                   </ul>
                 </div>
@@ -374,19 +380,25 @@ export default function MembresiasPage() {
                     <h4 className="font-medium mb-2">Incluye:</h4>
                     <ul className="list-disc pl-5 space-y-1">
                       <li>
-                        {tipo.limite_proveedores
-                          ? `Hasta ${tipo.limite_proveedores} proveedores`
-                          : "Proveedores ilimitados"}
+                        {tipo.nombre === "Plan Gratuito" 
+                          ? "Hasta 5 proveedores" 
+                          : (tipo.limite_proveedores
+                              ? `Hasta ${tipo.limite_proveedores} proveedores`
+                              : "Proveedores ilimitados")}
                       </li>
                       <li>
-                        {tipo.limite_articulos
-                          ? `Hasta ${tipo.limite_articulos} artículos`
-                          : "Artículos ilimitados"}
+                        {tipo.nombre === "Plan Gratuito"
+                          ? "Hasta 20 artículos"
+                          : (tipo.limite_articulos
+                              ? `Hasta ${tipo.limite_articulos} artículos`
+                              : "Artículos ilimitados")}
                       </li>
                       <li>
-                        {tipo.limite_listas
-                          ? `Hasta ${tipo.limite_listas} listas de compra`
-                          : "Listas de compra ilimitadas"}
+                        {tipo.nombre === "Plan Gratuito"
+                          ? "Hasta 3 listas de compra"
+                          : (tipo.limite_listas
+                              ? `Hasta ${tipo.limite_listas} listas de compra`
+                              : "Listas de compra ilimitadas")}
                       </li>
                       {tipo.tiene_ai ? (
                         <li className="text-indigo-600 font-semibold">

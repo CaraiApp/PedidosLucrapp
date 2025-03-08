@@ -102,38 +102,73 @@ export default function MembresiaPage() {
                       <div className="sm:col-span-2">
                         <dt className="text-sm font-medium text-gray-500">Beneficios de tu plan</dt>
                         <dd className="mt-1 text-sm text-gray-900">
-                          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                            <li className="bg-gray-50 rounded p-3">
-                              <div className="flex items-center">
-                                <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                                </svg>
-                                <span>
-                                  <strong>Ilimitados</strong> proveedores
-                                </span>
-                              </div>
-                            </li>
-                            <li className="bg-gray-50 rounded p-3">
-                              <div className="flex items-center">
-                                <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                                </svg>
-                                <span>
-                                  <strong>Ilimitados</strong> artículos
-                                </span>
-                              </div>
-                            </li>
-                            <li className="bg-gray-50 rounded p-3">
-                              <div className="flex items-center">
-                                <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                                </svg>
-                                <span>
-                                  <strong>Ilimitadas</strong> listas de compra
-                                </span>
-                              </div>
-                            </li>
-                          </ul>
+                          {user.membresia_activa?.tipo_membresia?.nombre === 'Plan Gratuito' ? (
+                            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                              <li className="bg-gray-50 rounded p-3">
+                                <div className="flex items-center">
+                                  <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                                  </svg>
+                                  <span>
+                                    <strong>Hasta 5</strong> proveedores
+                                  </span>
+                                </div>
+                              </li>
+                              <li className="bg-gray-50 rounded p-3">
+                                <div className="flex items-center">
+                                  <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                  </svg>
+                                  <span>
+                                    <strong>Hasta 20</strong> artículos
+                                  </span>
+                                </div>
+                              </li>
+                              <li className="bg-gray-50 rounded p-3">
+                                <div className="flex items-center">
+                                  <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                  </svg>
+                                  <span>
+                                    <strong>Hasta 3</strong> listas de compra
+                                  </span>
+                                </div>
+                              </li>
+                            </ul>
+                          ) : (
+                            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                              <li className="bg-gray-50 rounded p-3">
+                                <div className="flex items-center">
+                                  <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                                  </svg>
+                                  <span>
+                                    <strong>Ilimitados</strong> proveedores
+                                  </span>
+                                </div>
+                              </li>
+                              <li className="bg-gray-50 rounded p-3">
+                                <div className="flex items-center">
+                                  <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                  </svg>
+                                  <span>
+                                    <strong>Ilimitados</strong> artículos
+                                  </span>
+                                </div>
+                              </li>
+                              <li className="bg-gray-50 rounded p-3">
+                                <div className="flex items-center">
+                                  <svg className="h-5 w-5 text-indigo-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                  </svg>
+                                  <span>
+                                    <strong>Ilimitadas</strong> listas de compra
+                                  </span>
+                                </div>
+                              </li>
+                            </ul>
+                          )}
                         </dd>
                       </div>
                     </dl>
@@ -187,35 +222,84 @@ export default function MembresiaPage() {
           </div>
         </Card>
 
-        {/* Beneficios de Membresía */}
-        <Card title="Beneficios de Membresía Premium" className="mt-6">
+        {/* Comparación de Planes */}
+        <Card title="Comparación de Planes" className="mt-6">
           <div className="border-t border-gray-200 mt-5 pt-5">
-            <ul className="divide-y divide-gray-200">
-              <li className="py-4 flex">
-                <svg className="h-6 w-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Sin límites de proveedores y artículos</span>
-              </li>
-              <li className="py-4 flex">
-                <svg className="h-6 w-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Envío automático de pedidos vía email y WhatsApp</span>
-              </li>
-              <li className="py-4 flex">
-                <svg className="h-6 w-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Acceso a estadísticas y reportes avanzados</span>
-              </li>
-              <li className="py-4 flex">
-                <svg className="h-6 w-6 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Soporte técnico prioritario</span>
-              </li>
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Característica</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan Gratuito</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan Premium</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Proveedores</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Hasta 5</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">Ilimitados</td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Artículos</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Hasta 20</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">Ilimitados</td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Listas de compra</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Hasta 3</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">Ilimitadas</td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Envío automático de pedidos</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                      </svg>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
+                      <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Estadísticas avanzadas</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                      </svg>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
+                      <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Soporte prioritario</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                      </svg>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
+                      <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <Link href="/membresias">
+                <Button>
+                  Mejorar a Premium
+                </Button>
+              </Link>
+            </div>
           </div>
         </Card>
       </div>
