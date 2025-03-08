@@ -3,15 +3,11 @@ import Stripe from 'stripe';
 import { supabase } from '@/lib/supabase';
 
 // Check if STRIPE_SECRET_KEY is available
-const stripeKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeKey) {
-  console.warn('Missing STRIPE_SECRET_KEY environment variable in webhook route');
-}
+const stripeKey = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_for_build';
 
-// Initialize Stripe only if key is available
-const stripe = stripeKey 
-  ? new Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' }) 
-  : null;
+// Initialize Stripe with apiVersion as a separate variable to avoid build issues
+const apiVersion = '2025-02-24.acacia' as Stripe.LatestApiVersion;
+const stripe = new Stripe(stripeKey, { apiVersion });
 
 // Esta función necesita estar marcada como tal para aceptar el body sin parsear
 export const config = {
@@ -51,11 +47,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: 'Método no permitido' }, { status: 405 });
   }
   
-  // Check if Stripe is initialized
-  if (!stripe) {
-    console.error('Stripe is not initialized in webhook - missing API key');
+  // Check if we're using a real Stripe key or the placeholder
+  if (stripeKey === 'sk_test_placeholder_key_for_build') {
+    console.error('Using placeholder Stripe key in webhook - webhooks will not work');
     return NextResponse.json(
-      { error: 'Stripe configuration is missing' },
+      { error: 'Stripe is not properly configured' },
       { status: 500 }
     );
   }

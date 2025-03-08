@@ -2,15 +2,39 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import webpush from 'web-push';
 
-// Configurar Web Push con las claves VAPID
-webpush.setVapidDetails(
-  'mailto:info@lucrapp.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-  process.env.VAPID_PRIVATE_KEY || ''
-);
+// Variable para controlar si se pueden enviar notificaciones
+let canSendNotifications = false;
+
+// Configurar Web Push con las claves VAPID solo si están presentes
+try {
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+  
+  if (vapidPublicKey && vapidPrivateKey && vapidPublicKey.length > 0 && vapidPrivateKey.length > 0) {
+    webpush.setVapidDetails(
+      'mailto:info@lucrapp.com',
+      vapidPublicKey,
+      vapidPrivateKey
+    );
+    canSendNotifications = true;
+    console.log("Configuración de notificaciones VAPID completada");
+  } else {
+    console.warn("Faltan las claves VAPID, las notificaciones estarán deshabilitadas");
+  }
+} catch (error) {
+  console.error("Error al configurar VAPID:", error);
+}
 
 export async function POST(request: Request) {
   try {
+    // Si las notificaciones no están configuradas, devolver mensaje informativo
+    if (!canSendNotifications) {
+      return NextResponse.json({
+        success: false,
+        message: "Las notificaciones no están disponibles: faltan las claves VAPID"
+      });
+    }
+    
     // Verificar autenticación y parámetros
     const { usuarios, titulo, contenido, url, token } = await request.json();
     
