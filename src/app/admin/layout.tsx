@@ -1,7 +1,7 @@
 'use client';
 
-// Ensure dynamic rendering to avoid server-side errors
-export const dynamic = 'force-dynamic';
+// Import all configuration to ensure section is fully client-side only
+export * from './config';
 
 // Client Component for admin layout to ensure Auth provider works
 import { AdminAuthProvider } from "./auth";

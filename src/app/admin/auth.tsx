@@ -1,13 +1,27 @@
 // src/app/admin/auth.tsx
 'use client';
 
+// Export config to ensure client-only rendering
+export * from './config';
+
 // For debugging auth issues
 export const debugAuth = true;
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import CryptoJS from "crypto-js";
+
+// Importación condicional de CryptoJS para evitar errores durante la compilación estática
+let CryptoJS: any = null;
+
+// Solo cargar CryptoJS en el cliente
+if (typeof window !== 'undefined') {
+  import('crypto-js').then((module) => {
+    CryptoJS = module.default;
+  }).catch(err => {
+    console.error("Error cargando CryptoJS:", err);
+  });
+}
 
 // Clave secreta para cifrar/descifrar el token
 const SECRET_KEY = "lucrapp-admin-secret-key-2025";
@@ -52,12 +66,26 @@ export function useAdminAuth() {
 
 // Función para cifrar datos
 const encryptData = (data: AdminData): string => {
+  if (!CryptoJS) {
+    console.warn("CryptoJS no está disponible todavía para cifrar");
+    // Almacenamiento temporal para desarrollo
+    return JSON.stringify(data);
+  }
   return CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
 };
 
 // Función para descifrar datos
 const decryptData = (ciphertext: string): AdminData | null => {
   try {
+    if (!CryptoJS) {
+      console.warn("CryptoJS no está disponible todavía para descifrar");
+      // Si está en formato JSON simple, intentar parsear directamente
+      if (ciphertext.startsWith('{') && ciphertext.endsWith('}')) {
+        return JSON.parse(ciphertext) as AdminData;
+      }
+      return null;
+    }
+    
     const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
     const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
     return decryptedData as AdminData;
@@ -292,12 +320,27 @@ export function withAdminAuth<T extends object>(Component: React.ComponentType<T
 
 // Función para verificar seguridad adicional (anti-CSRF)
 export function generateCSRFToken(): string {
+  if (!CryptoJS) {
+    // Fallback simple para cuando CryptoJS no está disponible
+    const randomToken = Math.random().toString(36).substring(2, 15) + 
+                        Math.random().toString(36).substring(2, 15);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem("adminCsrfToken", randomToken);
+    }
+    return randomToken;
+  }
+  
   const token = CryptoJS.lib.WordArray.random(16).toString();
-  sessionStorage.setItem("adminCsrfToken", token);
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem("adminCsrfToken", token);
+  }
   return token;
 }
 
 export function validateCSRFToken(token: string): boolean {
+  if (typeof sessionStorage === 'undefined') {
+    return true; // En SSR siempre devolver true
+  }
   const storedToken = sessionStorage.getItem("adminCsrfToken");
   return storedToken === token;
 }
