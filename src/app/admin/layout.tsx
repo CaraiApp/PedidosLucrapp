@@ -3,8 +3,7 @@
 
 import { AdminAuthProvider } from "./auth";
 
-// Estos son los valores que se deben exportar para evitar problemas con Server Components
-// pero eliminamos "viewport" ya que causa problemas con generateViewport
+// Completamente client-side, sin SSR
 export const dynamic = 'force-dynamic';
 
 export default function AdminLayout({

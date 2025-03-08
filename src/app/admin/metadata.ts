@@ -1,6 +1,8 @@
-import type { Metadata } from 'next';
+const title = 'LucrApp - Administración';
+const description = 'Panel de administración de LucrApp';
 
-export const metadata: Metadata = {
-  title: 'LucrApp - Administración',
-  description: 'Panel de administración de LucrApp',
+// Exportamos metadatos estáticos para evitar problemas con Server Components
+export const metadata = {
+  title,
+  description,
 };

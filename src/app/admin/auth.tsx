@@ -1,8 +1,8 @@
 // src/app/admin/auth.tsx
 'use client';
 
-// Configuración explícita para este archivo
-export const dynamic = 'force-dynamic';
+// Evitamos exportar configuración de renderizado desde este archivo
+// para evitar conflictos entre cliente y servidor
 // No exportamos config para evitar problemas con Server Components
 
 // For debugging auth issues
