@@ -81,15 +81,22 @@ export async function POST(request: NextRequest) {
         }, { status: 500 });
       }
       
-      // Buscar primero una membresía gratuita o básica
-      const freeMembershipType = membershipTypes.find(
-        type => type.nombre.toLowerCase().includes("gratis") || 
-               type.nombre.toLowerCase().includes("gratuito") || 
-               type.nombre.toLowerCase().includes("básico") ||
-               type.nombre.toLowerCase().includes("basico") ||
-               type.nombre.toLowerCase().includes("free") ||
-               !type.tiene_ai
+      // Buscar primero la membresía "Plan Gratuito" por nombre exacto
+      let freeMembershipType = membershipTypes.find(
+        type => type.nombre === "Plan Gratuito"
       );
+      
+      // Si no se encuentra, buscar alternativas con nombres similares
+      if (!freeMembershipType) {
+        freeMembershipType = membershipTypes.find(
+          type => type.nombre.toLowerCase().includes("gratis") || 
+                 type.nombre.toLowerCase().includes("gratuito") || 
+                 type.nombre.toLowerCase().includes("básico") ||
+                 type.nombre.toLowerCase().includes("basico") ||
+                 type.nombre.toLowerCase().includes("free") ||
+                 !type.tiene_ai
+        );
+      }
       
       // Si no encontramos una gratuita, usar la primera disponible
       const freeMembershipTypeId = freeMembershipType?.id || membershipTypes[0].id;

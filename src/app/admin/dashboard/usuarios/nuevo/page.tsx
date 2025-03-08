@@ -187,15 +187,33 @@ export default function NuevoUsuario() {
       const fechaFin = new Date();
       fechaFin.setFullYear(fechaFin.getFullYear() + 1); // Plan gratuito por 1 año
       
-      // ID de la membresía gratuita (Plan Básico)
-      const membresiaBásicaID = "13fae609-2679-47fa-9731-e2f1badc4a61";
+      // Intentar buscar el ID del plan gratuito por nombre
+      let tipoPlanGratuitoId = "13fae609-2679-47fa-9731-e2f1badc4a61"; // ID fijo conocido como fallback
+      
+      try {
+        const { data, error } = await supabase
+          .from("membresia_tipos")
+          .select("id")
+          .eq("nombre", "Plan Gratuito")
+          .single();
+          
+        if (error) {
+          console.log("No se encontró el Plan Gratuito por nombre, usando ID fijo");
+        } else if (data) {
+          tipoPlanGratuitoId = data.id;
+          console.log("ID del Plan Gratuito encontrado en DB:", tipoPlanGratuitoId);
+        }
+      } catch (err) {
+        console.error("Error al buscar el plan gratuito:", err);
+        // Continuamos con el ID fijo como fallback
+      }
       
       // Crear registro de membresía
       const { data: membresia, error: membresiaError } = await supabase
         .from("membresias_usuarios")
         .insert({
           usuario_id: userId,
-          tipo_membresia_id: membresiaBásicaID,
+          tipo_membresia_id: tipoPlanGratuitoId,
           fecha_inicio: fechaInicio,
           fecha_fin: fechaFin.toISOString(),
           estado: "activa"

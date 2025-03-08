@@ -135,18 +135,25 @@ export default function Register() {
 
       if (profileError) throw profileError;
 
-      // 3. Obtener el ID del plan básico/gratuito
-      const { data: planGratuito, error: planError } = await supabase
-        .from("membresia_tipos")
-        .select("id")
-        .eq("nombre", "Plan Básico")
-        .single();
-
-      if (planError)
-        throw new Error("Error al obtener plan gratuito: " + planError.message);
-
-      // ID del plan gratuito
-      const tipoPlanGratuitoId = planGratuito.id;
+      // 3. Intentar obtener el ID del plan gratuito por nombre
+      let tipoPlanGratuitoId = "13fae609-2679-47fa-9731-e2f1badc4a61"; // ID fijo como fallback
+      
+      try {
+        const { data, error } = await supabase
+          .from("membresia_tipos")
+          .select("id")
+          .eq("nombre", "Plan Gratuito")
+          .single();
+          
+        if (error) {
+          console.log("No se encontró el Plan Gratuito por nombre, usando ID fijo");
+        } else if (data) {
+          tipoPlanGratuitoId = data.id;
+          console.log("ID del Plan Gratuito encontrado en DB:", tipoPlanGratuitoId);
+        }
+      } catch (err) {
+        console.warn("Error al obtener plan gratuito, usando ID fijo:", err);
+      }
 
       // 4. Crear membresía gratuita
       const oneYearFromNow = new Date();
