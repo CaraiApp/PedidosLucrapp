@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Usuario, Mensaje } from "@/types";
 import Alert from "@/components/ui/Alert";
@@ -10,38 +10,61 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminAuth } from "../../../auth.tsx";
 
 export default function PerfilUsuario() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAuth();
+  const { isAuthenticated } = useAdminAuth();
   const params = useParams();
+  const router = useRouter();
   const userId = params.id as string;
 
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [mostrarModalEmail, setMostrarModalEmail] = useState(false);
+  const [asunto, setAsunto] = useState("");
+  const [contenido, setContenido] = useState("");
   const [loading, setLoading] = useState(true);
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
+  const [permisosVerificados, setPermisosVerificados] = useState(false);
 
   const cargarDatosUsuario = useCallback(async () => {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
+      // Primero, obtenemos los datos básicos del usuario
+      const { data: userData, error: userError } = await supabase
         .from("usuarios")
-        .select(`
-          *,
-          membresia_activa: membresias_usuarios!membresia_activa_id(
-            id,
-            tipo_membresia:membresia_tipos(id, nombre, descripcion, precio, periodo),
-            fecha_inicio,
-            fecha_fin,
-            estado
-          )
-        `)
+        .select("*")
         .eq("id", userId)
         .single();
 
-      if (error) throw error;
-
-      setUsuario(data);
+      if (userError) throw userError;
+      
+      // Ahora, si el usuario tiene una membresía activa, cargamos esos datos
+      let membresia = null;
+      if (userData.membresia_activa_id) {
+        try {
+          const { data: membresiaData, error: membresiaError } = await supabase
+            .from("membresias_usuarios")
+            .select("*, tipo_membresia:membresia_tipos(*)")
+            .eq("id", userData.membresia_activa_id)
+            .single();
+            
+          if (!membresiaError && membresiaData) {
+            membresia = membresiaData;
+          }
+        } catch (membresiaErr) {
+          console.warn("Error al cargar datos de membresía:", membresiaErr);
+          // Continuamos aunque no se pueda cargar la membresía
+        }
+      }
+      
+      // Combinamos los datos
+      setUsuario({
+        ...userData,
+        membresia_activa: membresia
+      });
     } catch (err) {
       console.error("Error al cargar datos del usuario:", err);
       setMensaje({
@@ -53,19 +76,152 @@ export default function PerfilUsuario() {
     }
   }, [userId]);
   
+  // useEffect para verificar permisos y cargar datos (solo se ejecuta una vez)
   useEffect(() => {
-    // Verificar si el usuario es administrador
-    if (!isAdmin()) {
+    if (!permisosVerificados) {
+      const verificarAcceso = async () => {
+        try {
+          // 1. Verificar la autenticación de admin en Supabase
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            // Si hay un usuario logueado, comprobamos si es superadmin
+            if (session && session.user && session.user.email) {
+              const superAdminEmails = ['luisocro@gmail.com', 'admin@lucrapp.com'];
+              if (superAdminEmails.includes(session.user.email)) {
+                console.log("Superadmin detectado, concediendo acceso");
+                // Superadmin tiene acceso, cargamos datos del usuario
+                cargarDatosUsuario();
+                setPermisosVerificados(true);
+                return;
+              }
+            }
+          } catch (authError) {
+            console.warn("Error al verificar sesión de Supabase:", authError);
+          }
+          
+          // 2. Verificar la autenticación de admin con el hook de admin
+          if (isAuthenticated) {
+            console.log("Admin autenticado mediante hook useAdminAuth");
+            // Admin autenticado, cargar datos
+            cargarDatosUsuario();
+            setPermisosVerificados(true);
+            return;
+          }
+          
+          // 2.1 Verificar la autenticación de admin en sessionStorage (respaldo)
+          const adminAuth = sessionStorage.getItem("adminAuth");
+          if (adminAuth) {
+            console.log("Autenticación de admin detectada en sessionStorage");
+            // Admin autenticado, cargar datos
+            cargarDatosUsuario();
+            setPermisosVerificados(true);
+            return;
+          }
+          
+          // 3. Verificar funciones locales de autenticación como último recurso
+          const tienePermisosLocales = isAdmin() || isSuperAdmin();
+          if (tienePermisosLocales) {
+            console.log("Permisos locales verificados");
+            cargarDatosUsuario();
+            setPermisosVerificados(true);
+            return;
+          }
+          
+          // Si llegamos aquí, el usuario no tiene permisos
+          console.log("Sin permisos de acceso");
+          setMensaje({
+            texto: "No tienes permisos para acceder a esta página",
+            tipo: "error"
+          });
+          setLoading(false);
+          setPermisosVerificados(true);
+        } catch (error) {
+          console.error("Error al verificar acceso:", error);
+          setMensaje({
+            texto: "Error al verificar permisos de acceso",
+            tipo: "error"
+          });
+          setLoading(false);
+          setPermisosVerificados(true);
+        }
+      };
+      
+      verificarAcceso();
+    }
+  }, [permisosVerificados, userId]);
+
+  // Enviar correo al usuario
+  const enviarCorreoUsuario = async () => {
+    if (!usuario?.email || !asunto || !contenido) {
       setMensaje({
-        texto: "No tienes permisos para acceder a esta página",
+        texto: "Debes completar todos los campos",
         tipo: "error"
       });
       return;
     }
     
-    // Cargar datos del usuario
-    cargarDatosUsuario();
-  }, [isAdmin, userId, cargarDatosUsuario]);
+    setEnviandoEmail(true);
+    setMensaje(null);
+    
+    try {
+      // Obtener el token de autenticación
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error("No se pudo obtener la sesión de usuario");
+      }
+      
+      // Crear el contenido HTML con estilos
+      const contenidoHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h1 style="color: #4f46e5;">${asunto}</h1>
+          ${contenido.split('\n').map(parrafo => `<p>${parrafo}</p>`).join('')}
+          <div style="margin-top: 30px; padding: 20px 0; border-top: 1px solid #eaeaea;">
+            <p style="color: #666; font-size: 14px;">Saludos,<br>El equipo de Lucrapp</p>
+          </div>
+        </div>
+      `;
+      
+      // Enviar el correo a través de la API
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          destinatario: usuario.email,
+          asunto: asunto,
+          contenido: contenidoHtml,
+          token: session.access_token,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Error al enviar el correo");
+      }
+      
+      // Correo enviado con éxito
+      setMensaje({
+        texto: "Correo enviado correctamente",
+        tipo: "success"
+      });
+      
+      // Cerrar el modal y limpiar campos
+      setMostrarModalEmail(false);
+      setAsunto("");
+      setContenido("");
+    } catch (error: any) {
+      console.error("Error al enviar correo:", error);
+      setMensaje({
+        texto: `Error al enviar correo: ${error.message || "Error desconocido"}`,
+        tipo: "error"
+      });
+    } finally {
+      setEnviandoEmail(false);
+    }
+  };
 
   const asignarMembresiaGratuita = async () => {
     try {
@@ -245,14 +401,14 @@ export default function PerfilUsuario() {
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Precio</h3>
                   <p className="mt-1 text-sm text-gray-900">
-                    {usuario.membresia_activa.tipo_membresia.precio}€ / {usuario.membresia_activa.tipo_membresia.duracion_meses} meses
+                    {usuario.membresia_activa.tipo_membresia.precio || 0}€ / {usuario.membresia_activa.tipo_membresia.duracion_meses || 0} meses
                   </p>
                 </div>
               </div>
               
               <div className="mt-6 pt-4 border-t border-gray-200">
                 <Button 
-                  href={`/admin/dashboard/membresias/editar/${usuario.membresia_activa.id}`}
+                  href={`/admin/dashboard/membresias/gestionar/${userId}`}
                   variant="outline"
                   size="sm"
                   className="w-full"
@@ -323,21 +479,18 @@ export default function PerfilUsuario() {
             >
               Editar perfil
             </Button>
-            {usuario.membresia_activa ? (
-              <Button 
-                href={`/admin/dashboard/membresias/editar/${usuario.membresia_activa.id}`}
-                variant="outline"
-              >
-                Gestionar membresía
-              </Button>
-            ) : (
-              <Button 
-                onClick={asignarMembresiaGratuita}
-                variant="primary"
-              >
-                Asignar membresía gratuita
-              </Button>
-            )}
+            <Button 
+              href={`/admin/dashboard/membresias/gestionar/${userId}`}
+              variant="outline"
+            >
+              Gestionar membresía
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setMostrarModalEmail(true)}
+            >
+              Enviar correo
+            </Button>
             <Button
               variant="danger"
               onClick={() => {
@@ -351,6 +504,78 @@ export default function PerfilUsuario() {
           </div>
         </Card>
       </div>
+
+      {/* Modal para enviar correo */}
+      {mostrarModalEmail && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Enviar correo a {usuario?.email}
+                </h3>
+                <button 
+                  onClick={() => setMostrarModalEmail(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="asunto" className="block text-sm font-medium text-gray-700 mb-1">
+                    Asunto
+                  </label>
+                  <input
+                    type="text"
+                    id="asunto"
+                    className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={asunto}
+                    onChange={(e) => setAsunto(e.target.value)}
+                    placeholder="Asunto del correo"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="contenido" className="block text-sm font-medium text-gray-700 mb-1">
+                    Contenido
+                  </label>
+                  <textarea
+                    id="contenido"
+                    rows={8}
+                    className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={contenido}
+                    onChange={(e) => setContenido(e.target.value)}
+                    placeholder="Escribe el contenido del correo..."
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Puedes usar saltos de línea para separar párrafos.
+                  </p>
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setMostrarModalEmail(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={enviarCorreoUsuario}
+                    isLoading={enviandoEmail}
+                    disabled={enviandoEmail || !asunto || !contenido}
+                  >
+                    Enviar correo
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

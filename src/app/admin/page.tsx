@@ -8,61 +8,44 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Alert from "@/components/ui/Alert";
 import { Mensaje } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { AdminAuthProvider, useAdminAuth } from "./auth";
+import { debugPassword } from "./debug-password";
 
-export default function AdminAccess() {
+// Componente de inicio de sesión de administrador
+function AdminLoginForm() {
   const router = useRouter();
+  const { login, isAuthenticated, isLoading } = useAdminAuth();
   const [password, setPassword] = useState("");
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  // Verificar si ya hay una sesión de admin válida
+  // Redirigir si ya está autenticado
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        // Verificar si ya tiene acceso como admin
-        const hasAdminAccess = sessionStorage.getItem("adminAccess") === "granted";
-        
-        if (hasAdminAccess) {
-          // Verificar que la sesión de Supabase esté activa
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session) {
-            // Redirigir al dashboard directamente
-            router.push("/admin/dashboard");
-            return;
-          } else {
-            // Limpiar acceso de admin si no hay sesión activa
-            sessionStorage.removeItem("adminAccess");
-          }
-        }
-      } finally {
-        setIsCheckingSession(false);
-      }
-    };
-    
-    checkSession();
-  }, [router]);
+    if (isAuthenticated && !isLoading) {
+      router.push("/admin/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
-    setIsLoading(true);
+    setLoginLoading(true);
 
     try {
-      // Verificar la contraseña (en producción debería usar una solución más segura)
-      if (password === "Global01") {
-        // Almacenar en sessionStorage para mantener el acceso
-        sessionStorage.setItem("adminAccess", "granted");
-        console.log("Acceso de administrador concedido");
+      // DEBUG: Mostrar el hash de la contraseña para diagnóstico
+      const passwordHash = debugPassword(password);
+      console.log("Password hash:", passwordHash);
+      
+      // Intentar iniciar sesión con la contraseña proporcionada
+      const success = await login(password);
+      
+      if (success) {
         router.push("/admin/dashboard");
       } else {
         setMensaje({
-          texto: "Contraseña incorrecta. Por favor, inténtelo nuevamente.",
+          texto: "Contraseña incorrecta. Por favor, inténtelo nuevamente. Hash: " + passwordHash,
           tipo: "error"
         });
-        setIsLoading(false);
       }
     } catch (error) {
       console.error("Error al iniciar sesión de administrador:", error);
@@ -70,11 +53,12 @@ export default function AdminAccess() {
         texto: "Ha ocurrido un error al iniciar sesión. Intente nuevamente.",
         tipo: "error"
       });
-      setIsLoading(false);
+    } finally {
+      setLoginLoading(false);
     }
   };
-  
-  if (isCheckingSession) {
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="flex justify-center">
@@ -117,8 +101,8 @@ export default function AdminAccess() {
             <div>
               <Button
                 type="submit"
-                isLoading={isLoading}
-                disabled={isLoading}
+                isLoading={loginLoading}
+                disabled={loginLoading}
                 className="w-full"
               >
                 Acceder
@@ -137,5 +121,14 @@ export default function AdminAccess() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Contenedor con el proveedor de autenticación
+export default function AdminAccess() {
+  return (
+    <AdminAuthProvider>
+      <AdminLoginForm />
+    </AdminAuthProvider>
   );
 }

@@ -10,55 +10,89 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminAuth } from "../../auth.tsx";
 
 export default function GestionUsuarios() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin, user } = useAuth();
+  const { isAuthenticated } = useAdminAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
   const [filtro, setFiltro] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [permisosVerificados, setPermisosVerificados] = useState(false);
 
   useEffect(() => {
-    // Verificar si el usuario es administrador
-    if (!isAdmin()) {
-      setMensaje({
-        texto: "No tienes permisos para acceder a esta página",
-        tipo: "error"
-      });
-      return;
+    // Verificar permisos una sola vez
+    if (!permisosVerificados) {
+      const verificarPermisos = async () => {
+        // Si el usuario está autenticado como admin en la sesión de admin O
+        // es un superadmin en la sesión normal, tiene acceso
+        const tieneAcceso = isAuthenticated || isAdmin() || isSuperAdmin();
+        
+        if (!tieneAcceso) {
+          setMensaje({
+            texto: "No tienes permisos para acceder a esta página",
+            tipo: "error"
+          });
+          setLoading(false);
+        } else {
+          // Usuario tiene permisos, cargar usuarios
+          cargarUsuarios();
+        }
+        
+        setPermisosVerificados(true);
+      };
+      
+      verificarPermisos();
     }
-    
-    cargarUsuarios();
-  }, [isAdmin]);
+  }, [isAuthenticated, isAdmin, isSuperAdmin, permisosVerificados]);
 
   const cargarUsuarios = async () => {
     try {
       setLoading(true);
       
+      // Verificar primero si hay conexión
+      const { data: testData, error: testError } = await supabase
+        .from("usuarios")
+        .select("count", { count: "exact", head: true });
+      
+      if (testError) {
+        console.error("Error al verificar conexión:", testError);
+        throw new Error("Error de conexión a la base de datos: " + (testError.message || "Error desconocido"));
+      }
+      
+      console.log("Test de conexión exitoso, procediendo a cargar usuarios");
+      
+      // Realizar la consulta simplificada primero para evitar referencias complejas
       const { data, error } = await supabase
         .from("usuarios")
-        .select(
-          `
-          *,
-          membresia_activa: membresias_usuarios!membresia_activa_id(
-            id,
-            tipo_membresia:membresia_tipos(id, nombre),
-            fecha_fin,
-            estado
-          )
-        `
-        )
+        .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error en consulta principal:", error);
+        throw new Error(error.message || "Error al cargar datos");
+      }
+
+      // Obtener membresías en una segunda consulta si es necesario
+      if (data && data.length > 0) {
+        try {
+          // Aquí podrías cargar membresías por separado si necesitas esa información
+          // Por ahora simplemente usamos los datos básicos
+          console.log(`Cargados ${data.length} usuarios correctamente`);
+        } catch (membresiaErr) {
+          console.warn("Error al cargar membresías:", membresiaErr);
+          // Continuamos con los datos básicos
+        }
+      }
 
       setUsuarios(data || []);
     } catch (err) {
-      console.error("Error al cargar usuarios:", err);
+      console.error("Error detallado al cargar usuarios:", err);
       setMensaje({
-        texto: "No se pudieron cargar los usuarios. Por favor, intenta nuevamente.",
+        texto: `No se pudieron cargar los usuarios: ${err instanceof Error ? err.message : "Error desconocido"}`,
         tipo: "error"
       });
     } finally {
@@ -256,14 +290,13 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {usuario.membresia_activa && usuario.membresia_activa.tipo_membresia ? (
+                        {usuario.membresia_activa_id ? (
                           <div>
                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              {usuario.membresia_activa.tipo_membresia.nombre || 'Plan básico'}
+                              Plan activo
                             </span>
                             <div className="text-xs text-gray-500 mt-1">
-                              Vence:{" "}
-                              {formatearFecha(usuario.membresia_activa.fecha_fin)}
+                              ID: {usuario.membresia_activa_id.substring(0, 8)}...
                             </div>
                           </div>
                         ) : (

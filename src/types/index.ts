@@ -63,6 +63,7 @@ export interface TipoMembresia {
   orden?: number;
   activo?: boolean;
   stripe_price_id?: string;
+  // Removido: es_destacado?: boolean; - No existe en la base de datos
 }
 
 // Tipos relacionados con proveedores
@@ -175,7 +176,8 @@ export interface SupabaseError {
 // Tipo para mensajes de feedback al usuario
 export interface Mensaje {
   texto: string;
-  tipo: 'exito' | 'error' | 'info' | 'advertencia';
+  tipo: 'exito' | 'error' | 'info' | 'advertencia' | 'success';
+  // 'success' añadido para compatibilidad con los componentes nuevos
 }
 
 // Declaration for next-pwa

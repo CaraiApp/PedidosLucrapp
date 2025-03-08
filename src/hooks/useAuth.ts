@@ -432,9 +432,21 @@ export function useAuth() {
   
   // Función para verificar si el usuario tiene acceso a una ruta administrativa
   const isAdmin = () => {
-    // Aquí puedes implementar tu lógica para determinar si un usuario es administrador
-    // Por ejemplo, verificar un campo 'rol' en el objeto usuario
-    return state.user?.email === 'admin@lucrapp.com'; // Ejemplo simple
+    // Lista de correos electrónicos de administradores
+    const adminEmails = [
+      'admin@lucrapp.com',
+      'luiscrouseillesvillena@gmail.com',
+      'luis@lucrapp.com',
+      'luisocro@gmail.com' // Superadmin principal
+    ];
+    
+    // Verificar si el email del usuario está en la lista de administradores
+    return state.user?.email && adminEmails.includes(state.user.email);
+  };
+  
+  // Función para verificar si el usuario es superadmin
+  const isSuperAdmin = () => {
+    return state.user?.email === 'luisocro@gmail.com';
   };
   
   return {
@@ -446,5 +458,6 @@ export function useAuth() {
     signUp,
     updateProfile,
     isAdmin,
+    isSuperAdmin
   };
 }
