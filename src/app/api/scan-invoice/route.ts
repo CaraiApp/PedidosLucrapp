@@ -13,8 +13,7 @@ export async function POST(request: NextRequest) {
     // Usar cookies para diagnóstico
     const cookieStore = cookies();
     console.log(
-      "Cookies disponibles:",
-      cookieStore.getAll().map((c) => c.name)
+      "Cookies disponibles en diagnóstico"
     );
 
     // Verificar sesión a través de Supabase
@@ -75,7 +74,7 @@ export async function POST(request: NextRequest) {
       const messages = [
         {
           role: "user",
-          content: [],
+          content: [] as any[],
         },
       ];
 
@@ -240,9 +239,9 @@ async function processExtractedData(jsonData: any, userId: string) {
 
     // Añadir información sobre posibles artículos duplicados
     if (articulosExistentes?.length && jsonData.articulos) {
-      jsonData.articulos = jsonData.articulos.map((articulo) => {
+      jsonData.articulos = jsonData.articulos.map((articulo: any) => {
         const posiblesDuplicados = articulosExistentes.filter(
-          (a) =>
+          (a: any) =>
             (articulo.nombre &&
               a.nombre.toLowerCase().includes(articulo.nombre.toLowerCase())) ||
             (articulo.sku &&

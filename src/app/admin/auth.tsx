@@ -1,5 +1,5 @@
 // src/app/admin/auth.tsx
-"use client";
+'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -248,7 +248,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 }
 
 // Middleware de acceso (solo permitir si está autenticado)
-export function withAdminAuth<T>(Component: React.ComponentType<T>) {
+export function withAdminAuth<T extends object>(Component: React.ComponentType<T>) {
   return function WithAdminAuth(props: T) {
     const { isAuthenticated, isLoading } = useAdminAuth();
     const router = useRouter();

@@ -10,7 +10,7 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdminAuth } from "../../auth.tsx";
+import { useAdminAuth } from "../../auth";
 
 export default function GestionUsuarios() {
   const { isAdmin, isSuperAdmin, user } = useAuth();

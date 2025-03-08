@@ -189,7 +189,7 @@ export default function SeguridadAdmin() {
               <h3 className="text-sm font-medium text-gray-500">Intentos fallidos de acceso</h3>
               <p className="mt-1 text-sm text-gray-900">{intentosFallidos}</p>
               <Button 
-                variant="text" 
+                variant="ghost" 
                 className="mt-2 text-xs"
                 onClick={handleReiniciarIntentosFallidos}
               >

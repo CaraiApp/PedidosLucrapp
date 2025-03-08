@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     // Usar cookies para diagnóstico
     const cookieStore = cookies();
-    console.log("Cookies disponibles:", cookieStore.getAll().map(c => c.name));
+    console.log("Cookies disponibles para diagnóstico");
     
     // Verificar sesión a través de Supabase
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -88,12 +88,15 @@ export async function GET(request: NextRequest) {
     let tipoMembresia: any = null;
     
     if (membresiaData?.tipo_membresia) {
-      if (Array.isArray(membresiaData.tipo_membresia)) {
-        tieneAccesoIA = !!membresiaData.tipo_membresia[0]?.tiene_ai;
-        tipoMembresia = membresiaData.tipo_membresia[0];
+      // Tratar la respuesta como 'any' ya que puede ser un array o un objeto 
+      const tipoMembresiaData = membresiaData.tipo_membresia as any;
+      
+      if (Array.isArray(tipoMembresiaData)) {
+        tieneAccesoIA = !!tipoMembresiaData[0]?.tiene_ai;
+        tipoMembresia = tipoMembresiaData[0];
       } else {
-        tieneAccesoIA = !!membresiaData.tipo_membresia.tiene_ai;
-        tipoMembresia = membresiaData.tipo_membresia;
+        tieneAccesoIA = !!tipoMembresiaData.tiene_ai;
+        tipoMembresia = tipoMembresiaData;
       }
     }
     

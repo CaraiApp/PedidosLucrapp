@@ -197,7 +197,12 @@ export default function EditarMembresia() {
         }
       } catch (updateError) {
         console.error("Error durante la actualización:", updateError);
-        throw new Error(`Error al actualizar: ${updateError.message || JSON.stringify(updateError)}`);
+        const errorMessage = updateError instanceof Error 
+          ? updateError.message 
+          : typeof updateError === 'object' && updateError !== null
+            ? JSON.stringify(updateError)
+            : 'Error desconocido';
+        throw new Error(`Error al actualizar: ${errorMessage}`);
       }
 
       // El error ya fue manejado en el bloque try/catch anterior
@@ -259,7 +264,7 @@ export default function EditarMembresia() {
     <div>
       <div className="mb-6">
         <Button
-          variant="text"
+          variant="ghost"
           onClick={() => router.push("/admin/dashboard/membresias")}
           className="flex items-center gap-2"
         >

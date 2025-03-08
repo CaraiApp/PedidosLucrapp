@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Buscar la membresía premium (con AI)
     const premiumMembership = memberships?.find(m => 
-      m.estado === 'activa' && m.tipo_membresia?.tiene_ai === true
+      m.estado === 'activa' && m.tipo_membresia && typeof m.tipo_membresia === 'object' && 'tiene_ai' in m.tipo_membresia && m.tipo_membresia.tiene_ai === true
     );
     
     // 4. Si no hay membresía premium activa, buscar cualquier membresía activa
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 6. Si la membresía objetivo no está activa, activarla
-    if (targetMembership.estado !== 'activa') {
+    if (targetMembership && targetMembership.estado !== 'activa') {
       const { error: updateMembershipError } = await supabase
         .from("membresias_usuarios")
         .update({ estado: "activa" })
@@ -139,22 +139,29 @@ export async function POST(request: NextRequest) {
     }
     
     // 7. Actualizar el usuario con la membresía objetivo
-    const { error: updateUserError } = await supabase
-      .from("usuarios")
-      .update({ membresia_activa_id: targetMembership.id })
-      .eq("id", userId);
-      
-    if (updateUserError) {
+    if (targetMembership) {
+      const { error: updateUserError } = await supabase
+        .from("usuarios")
+        .update({ membresia_activa_id: targetMembership.id })
+        .eq("id", userId);
+        
+      if (updateUserError) {
+        return NextResponse.json({
+          success: false,
+          message: `Error al actualizar usuario con membresía: ${updateUserError.message}`
+        }, { status: 500 });
+      }
+    } else {
       return NextResponse.json({
         success: false,
-        message: `Error al actualizar usuario con membresía: ${updateUserError.message}`
+        message: "No se pudo encontrar ni crear una membresía válida"
       }, { status: 500 });
     }
     
     // 8. Desactivar otras membresías activas si existen
-    const otherActiveMemberships = memberships?.filter(m => 
+    const otherActiveMemberships = targetMembership ? memberships?.filter(m => 
       m.estado === 'activa' && m.id !== targetMembership.id
-    );
+    ) : [];
     
     if (otherActiveMemberships && otherActiveMemberships.length > 0) {
       const idsToDeactivate = otherActiveMemberships.map(m => m.id);

@@ -37,12 +37,17 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Configuration for Next.js
+const configWithOptions = {
+  ...nextConfig
+};
+
 // @ts-ignore
 const pwaConfig = withPWA({
   dest: 'public',
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development'
-})(nextConfig);
+})(configWithOptions);
 
 export default pwaConfig;

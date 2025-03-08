@@ -6,9 +6,9 @@ export async function GET(request: NextRequest) {
   try {
     // Usar cookies para mejorar la detección de sesión
     const cookieStore = cookies();
-    const supabaseAuthCookie = cookieStore.get('sb-auth-token')?.value;
+    const supabaseAuthCookie = await cookieStore.then(store => store.get('sb-auth-token')?.value);
     
-    console.log("Cookies disponibles:", cookieStore.getAll().map(c => c.name));
+    console.log("Cookies disponibles:", await cookieStore.then(store => store.getAll().map(c => c.name)));
     console.log("Existe cookie de auth:", !!supabaseAuthCookie);
     
     // Verificar sesión a través de Supabase

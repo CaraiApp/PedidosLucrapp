@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdminAuth } from "../../../auth.tsx";
+import { useAdminAuth } from "../../../auth";
 
 export default function PerfilUsuario() {
   const { isAdmin, isSuperAdmin } = useAuth();

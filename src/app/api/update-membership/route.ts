@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const cookieStore = cookies();
     
     // Log de cookies y sesión para diagnóstico
-    console.log("Cookies disponibles:", cookieStore.getAll().map(c => c.name));
+    console.log("Cookies disponibles para diagnóstico");
     
     // Verificar sesión a través de Supabase
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();

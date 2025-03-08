@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdminAuth } from "../../../../auth.tsx";
+import { useAdminAuth } from "../../../../auth";
 
 export default function GestionarMembresia() {
   const { isAdmin, isSuperAdmin } = useAuth();
@@ -367,9 +367,7 @@ export default function GestionarMembresia() {
                   <span className="font-mono">
                     {usuario.membresia_activa.tipo_membresia_id ? 
                       usuario.membresia_activa.tipo_membresia_id.substring(0, 8) + "..." :
-                      usuario.membresia_activa.membresia_id ? 
-                        usuario.membresia_activa.membresia_id.substring(0, 8) + "..." :
-                        "ID no disponible"}
+                      "ID no disponible"}
                   </span>
                 </p>
                 <p className="text-sm text-gray-600 mb-1">
