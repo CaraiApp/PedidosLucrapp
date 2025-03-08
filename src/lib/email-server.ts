@@ -1,15 +1,17 @@
-// Este archivo ahora está diseñado para ser compatible con el cliente
-// Las importaciones de NodeJS (como SendGrid) deben usarse solo en el servidor
+// Este archivo es SOLO para uso del servidor (no importar en componentes cliente)
+import sgMail from '@sendgrid/mail';
+
+// Inicializar SendGrid (se hará una vez que se establezca la API key)
+let sendgridInitialized = false;
 
 /**
- * Envía un correo electrónico usando la API
- * Esta versión es compatible con cliente y servidor
+ * Envía un correo electrónico usando SendGrid directamente (solo servidor)
  * @param destinatario Email del destinatario
  * @param asunto Asunto del correo
  * @param contenidoHtml Contenido HTML del correo
  * @returns Objeto con el resultado del envío
  */
-export async function enviarCorreo(
+export async function enviarCorreoDesdeServidor(
   destinatario: string,
   asunto: string,
   contenidoHtml: string
@@ -20,54 +22,82 @@ export async function enviarCorreo(
       throw new Error("Todos los campos son obligatorios: destinatario, asunto y contenido");
     }
 
-    // Enviar a través de nuestra API en lugar de importar SendGrid directamente
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        destinatario,
-        asunto,
-        contenido: contenidoHtml,
-      }),
-    });
-    
-    const result = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(result.error || result.details || "Error al enviar el correo");
+    // Inicializar SendGrid si aún no está inicializado
+    if (!sendgridInitialized) {
+      if (!process.env.SENDGRID_API_KEY) {
+        throw new Error("SENDGRID_API_KEY no está configurada en las variables de entorno");
+      }
+      console.log("Inicializando SendGrid con API Key");
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      sendgridInitialized = true;
     }
+
+    const emailRemitente = process.env.EMAIL_REMITENTE || "noreply@lucrapp.com";
+    const nombreRemitente = process.env.NOMBRE_REMITENTE || "Lucrapp";
     
+    console.log(`Configurando correo desde: ${emailRemitente} (${nombreRemitente})`);
+    console.log(`Para enviar a: ${destinatario}`);
+    
+    // IMPORTANTE: El email remitente debe estar verificado en SendGrid
+    // Si estás en modo de pruebas, es más fácil usar una dirección de Gmail o similar
+    // que ya esté verificada para pruebas
+    
+    const mensaje = {
+      to: destinatario,
+      from: {
+        email: emailRemitente,
+        name: nombreRemitente
+      },
+      subject: asunto,
+      html: contenidoHtml,
+      // Versión en texto plano
+      text: contenidoHtml.replace(/<[^>]*>/g, '')
+    };
+
+    console.log("Enviando mensaje a través de SendGrid...");
+    const response = await sgMail.send(mensaje);
+    
+    console.log("Correo enviado correctamente:", response[0].statusCode);
     return { 
       success: true, 
-      statusCode: 200,
+      statusCode: response[0].statusCode,
       timestamp: new Date().toISOString()
     };
   } catch (error: any) {
     console.error("Error al enviar correo:", error);
     
-    // Extraer información del error
+    // Extraer información detallada del error de SendGrid
     let errorMsg = error.message || "Error desconocido";
+    let errorDetails = null;
     
-    if (errorMsg.includes("verified")) {
-      errorMsg = "El remitente no está verificado en SendGrid. Por favor, verifica tu dirección de correo.";
+    if (error.response && error.response.body) {
+      try {
+        errorDetails = error.response.body;
+        console.error("Detalles del error de SendGrid:", JSON.stringify(errorDetails));
+      } catch (e) {
+        console.error("No se pudieron parsear los detalles del error");
+      }
+    }
+    
+    if (errorMsg.includes("does not exist or is not verified")) {
+      errorMsg = "El remitente no está verificado en SendGrid. Por favor, verifica tu dirección de correo en la plataforma de SendGrid.";
     }
     
     return { 
       success: false, 
       error: errorMsg,
+      details: errorDetails,
       timestamp: new Date().toISOString()
     };
   }
 }
 
 /**
- * Envía una plantilla de correo para bienvenida de nuevos usuarios
+ * Envía una plantilla de correo para bienvenida de nuevos usuarios (versión servidor)
  * @param email Email del usuario
  * @param nombre Nombre del usuario
  */
-export async function enviarEmailBienvenida(email: string, nombre: string) {
+export async function enviarEmailBienvenidaDesdeServidor(email: string, nombre: string) {
   const asunto = "¡Bienvenido a Lucrapp!";
   const contenido = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -87,18 +117,17 @@ export async function enviarEmailBienvenida(email: string, nombre: string) {
     </div>
   `;
   
-  // En el cliente, usamos la API
-  return await enviarCorreo(email, asunto, contenido);
+  return await enviarCorreoDesdeServidor(email, asunto, contenido);
 }
 
 /**
- * Envía una notificación sobre la membresía
+ * Envía una notificación sobre la membresía (versión servidor)
  * @param email Email del usuario
  * @param nombre Nombre del usuario
  * @param tipoMembresia Tipo de membresía asignada
  * @param fechaExpiracion Fecha de expiración de la membresía
  */
-export async function notificarMembresia(
+export async function notificarMembresiaDesdeServidor(
   email: string, 
   nombre: string,
   tipoMembresia: string,
@@ -128,6 +157,5 @@ export async function notificarMembresia(
     </div>
   `;
   
-  // En el cliente, usamos la API
-  return await enviarCorreo(email, asunto, contenido);
+  return await enviarCorreoDesdeServidor(email, asunto, contenido);
 }

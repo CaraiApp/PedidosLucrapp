@@ -11,7 +11,6 @@ import Card from "@/components/ui/Card";
 import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../../../auth.tsx";
-import { notificarMembresia } from "@/lib/email";
 
 export default function GestionarMembresia() {
   const { isAdmin, isSuperAdmin } = useAuth();
@@ -218,23 +217,39 @@ export default function GestionarMembresia() {
         throw new Error(updateError.message || "Error al actualizar el usuario");
       }
       
-      // Notificar al usuario por email
+      // Notificar al usuario por email - ahora lo hacemos mediante una API
       if (usuario.email) {
         try {
           console.log("Enviando notificación por email...");
-          const resultadoEmail = await notificarMembresia(
-            usuario.email,
-            usuario.nombre || usuario.username || "Usuario",
-            tipoMembresia.nombre,
-            fechaFin.toISOString()
-          );
           
-          console.log("Resultado del envío de email:", resultadoEmail);
+          // Obtenemos la sesión para incluir el token
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           
-          if (resultadoEmail.success) {
+          if (sessionError || !session) {
+            throw new Error("No se pudo obtener la sesión");
+          }
+          
+          // Enviamos la notificación a través de la API
+          const response = await fetch('/api/notify-membership', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: usuario.email,
+              nombre: usuario.nombre || usuario.username || "Usuario",
+              tipoMembresia: tipoMembresia.nombre,
+              fechaExpiracion: fechaFin.toISOString(),
+              token: session.access_token,
+            }),
+          });
+          
+          const result = await response.json();
+          
+          if (response.ok && result.success) {
             console.log("Email enviado correctamente");
           } else {
-            console.warn("No se pudo enviar el email de notificación:", resultadoEmail.error);
+            console.warn("No se pudo enviar el email de notificación:", result.error || "Error desconocido");
           }
         } catch (emailError) {
           console.error("Error al enviar notificación por email:", emailError);

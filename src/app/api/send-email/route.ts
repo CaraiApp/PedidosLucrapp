@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { enviarCorreo } from '@/lib/email';
+import { enviarCorreoDesdeServidor } from '@/lib/email-server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(request: Request) {
@@ -47,8 +47,8 @@ export async function POST(request: Request) {
       );
     }
     
-    // Enviar el correo
-    const resultado = await enviarCorreo(destinatario, asunto, contenido);
+    // Enviar el correo usando la implementación del servidor
+    const resultado = await enviarCorreoDesdeServidor(destinatario, asunto, contenido);
     
     // Registrar detalladamente el resultado para diagnóstico
     console.log('Resultado detallado del envío:', JSON.stringify(resultado));

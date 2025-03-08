@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { enviarCorreo } from '@/lib/email';
+import { enviarCorreoDesdeServidor } from '@/lib/email-server';
 
 // Ruta para pruebas de envío de correo electrónico
 export async function POST(request: Request) {
@@ -21,8 +21,8 @@ export async function POST(request: Request) {
     
     console.log("Preparando envío de prueba a:", destinatario);
     
-    // Enviar un correo de prueba
-    const resultado = await enviarCorreo(
+    // Enviar un correo de prueba usando la implementación del servidor
+    const resultado = await enviarCorreoDesdeServidor(
       destinatario,
       asunto,
       contenido
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
     // Enviar un correo de prueba con contenido predefinido
     console.log("Enviando correo de prueba a:", emailDestino);
     
-    const resultado = await enviarCorreo(
+    const resultado = await enviarCorreoDesdeServidor(
       emailDestino,
       "Prueba de configuración con SendGrid en Lucrapp",
       `
