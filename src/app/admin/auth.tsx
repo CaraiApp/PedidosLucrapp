@@ -1,8 +1,9 @@
 // src/app/admin/auth.tsx
 'use client';
 
-// Export config to ensure client-only rendering
-export * from './config';
+// Configuración explícita para este archivo
+export const dynamic = 'force-dynamic';
+// No exportamos config para evitar problemas con Server Components
 
 // For debugging auth issues
 export const debugAuth = true;
@@ -100,13 +101,25 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  
+  // Estado para manejar si estamos en cliente o servidor
+  const [isBrowser, setIsBrowser] = useState(false);
+  
+  // Detectar si estamos en el navegador
+  useEffect(() => {
+    setIsBrowser(true);
+  }, []);
 
   // Verificar si el administrador ya está autenticado al cargar
   useEffect(() => {
+    // No hacer nada si no estamos en el navegador
+    if (!isBrowser) return;
+    
     const checkAuthStatus = async () => {
       try {
+        // Solo acceder a sessionStorage en el cliente
         // Primero verificamos si hay una sesión válida en sessionStorage
-        const adminData = sessionStorage.getItem("adminAuth");
+        const adminData = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem("adminAuth") : null;
         if (adminData) {
           const decryptedData = decryptData(adminData);
           if (decryptedData) {
@@ -174,7 +187,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     };
 
     checkAuthStatus();
-  }, []);
+  }, [isBrowser]);
 
   // Función para iniciar sesión
   const login = async (password: string): Promise<boolean> => {

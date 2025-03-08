@@ -15,13 +15,12 @@ export const metadata: Metadata = {
   },
 };
 
+// Configuración viewport para toda la aplicación excepto /admin
+// que tiene su propia configuración
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   themeColor: '#4f46e5',
-  viewportFit: 'cover',
 }
 
 export default function RootLayout({

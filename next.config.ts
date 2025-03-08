@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'https://pedidos.lucrapp.com',
   },
+  // Forzar renderizado basado en cliente para la sección admin
+  // para evitar problemas con generateViewport()
+  experimental: {
+    serverComponentsExternalPackages: ['crypto-js'],
+  },
   async rewrites() {
     return [
       {

@@ -1,7 +1,10 @@
 // src/app/admin/page.tsx
 'use client';
 
+// Configuración para manejo dinámico
 export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+export const revalidate = 0;
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";

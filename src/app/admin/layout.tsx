@@ -1,19 +1,23 @@
+// Layout para la sección de administración
 'use client';
 
-// Import all configuration to ensure section is fully client-side only
-export * from './config';
-
-// Client Component for admin layout to ensure Auth provider works
 import { AdminAuthProvider } from "./auth";
+
+// Estos son los valores que se deben exportar para evitar problemas con Server Components
+// pero eliminamos "viewport" ya que causa problemas con generateViewport
+export const dynamic = 'force-dynamic';
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Envolver en un div para asegurar que no haya problemas de hidratación
   return (
-    <AdminAuthProvider>
-      {children}
-    </AdminAuthProvider>
+    <div className="admin-layout">
+      <AdminAuthProvider>
+        {children}
+      </AdminAuthProvider>
+    </div>
   );
 }
