@@ -1,12 +1,28 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppLayout from "../../components/AppLayout";
 import { supabase } from "@/lib/supabase";
 import Loading from "@/components/ui/Loading";
 
+// Componente principal con Suspense para evitar problemas de carga inicial
+export default function EscanearFacturaPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="py-8">
+          <Loading text="Cargando escáner..." />
+        </div>
+      </AppLayout>
+    }>
+      <EscanerFactura />
+    </Suspense>
+  );
+}
+
+// Interfaces para los datos
 interface Proveedor {
   id: string;
   nombre: string;
@@ -31,124 +47,146 @@ interface DatosEscaneados {
   articulos: Articulo[];
 }
 
-export default function EscanearFacturaPage() {
+// Componente principal con toda la lógica
+function EscanerFactura() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  
+  // Estados
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [imagen, setImagen] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [imagenCapturada, setImagenCapturada] = useState<string | null>(null);
   const [isPdf, setIsPdf] = useState<boolean>(false);
   const [datosEscaneados, setDatosEscaneados] = useState<DatosEscaneados | null>(null);
   const [proveedorExistente, setProveedorExistente] = useState<Proveedor | null>(null);
   const [proveedoresDisponibles, setProveedoresDisponibles] = useState<Proveedor[]>([]);
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>("");
   const [guardando, setGuardando] = useState<boolean>(false);
-  const [permisoIA, setPermisoIA] = useState<boolean | null>(null);
-  const [verificandoPermisos, setVerificandoPermisos] = useState<boolean>(true);
-
+  const [mostrandoCamara, setMostrandoCamara] = useState<boolean>(false);
+  
+  // Cargar proveedores al inicio
   useEffect(() => {
-    const verificarPermisos = async () => {
+    const cargarProveedores = async () => {
       try {
-        setVerificandoPermisos(true);
-        
-        // Verificar sesión
+        // Verificar estado de sesión para debugging
         const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
-          router.push("/login");
-          return;
-        }
-
-        // Verificar si el usuario tiene acceso a funcionalidades de IA
-        // Primero, obtenemos el ID de membresía activa
-        const { data: userInfo, error: userInfoError } = await supabase
-          .from("usuarios")
-          .select("membresia_activa_id")
-          .eq("id", sessionData.session.user.id)
-          .single();
-          
-        if (userInfoError) {
-          console.error("Error al obtener información del usuario:", userInfoError);
-          setError("Error al verificar tus permisos. Por favor, intenta nuevamente.");
-          setPermisoIA(false);
-          return;
-        }
+        console.log("Estado de sesión al cargar:", sessionData?.session ? "Activa" : "Inactiva");
         
-        console.log("ID de membresía activa:", userInfo.membresia_activa_id);
-        
-        if (!userInfo.membresia_activa_id) {
-          console.log("El usuario no tiene una membresía activa");
-          setPermisoIA(false);
-          return;
-        }
-        
-        // Luego, obtenemos los detalles de la membresía incluyendo tipo
-        const { data: membresiaData, error: membresiaError } = await supabase
-          .from("membresias_usuarios")
-          .select(`
-            id,
-            tipo_membresia:membresia_tipos(*)
-          `)
-          .eq("id", userInfo.membresia_activa_id)
-          .single();
-          
-        if (membresiaError) {
-          console.error("Error al verificar detalles de membresía:", membresiaError);
-          setError("Error al verificar tu membresía. Por favor, intenta nuevamente.");
-          setPermisoIA(false);
-          return;
-        }
-        
-        console.log("Datos de membresía:", membresiaData);
-        
-        // Comprobar si tiene IA, considerando posibles estructuras de la respuesta
-        let tieneAccesoIA = false;
-        
-        if (membresiaData?.tipo_membresia) {
-          if (Array.isArray(membresiaData.tipo_membresia)) {
-            // Si es un array, tomamos el primer elemento
-            tieneAccesoIA = !!membresiaData.tipo_membresia[0]?.tiene_ai;
-            console.log("Tiene IA (desde array):", tieneAccesoIA);
-          } else {
-            // Si es un objeto directo
-            tieneAccesoIA = !!membresiaData.tipo_membresia.tiene_ai;
-            console.log("Tiene IA (desde objeto):", tieneAccesoIA);
+        if (sessionData?.session?.user?.id) {
+          // Si hay sesión activa, cargar proveedores reales
+          const { data: proveedores, error } = await supabase
+            .from("proveedores")
+            .select("id, nombre, cif, telefono, email, direccion")
+            .eq("usuario_id", sessionData.session.user.id)
+            .order("nombre");
+            
+          if (error) {
+            console.error("Error al consultar proveedores:", error);
           }
+            
+          if (proveedores && proveedores.length > 0) {
+            console.log(`Se cargaron ${proveedores.length} proveedores`);
+            setProveedoresDisponibles(proveedores);
+          } else {
+            console.log("No se encontraron proveedores para el usuario");
+          }
+        } else {
+          console.log("Sin sesión activa, usando proveedores de muestra");
+          // Proveedores de muestra para pruebas
+          setProveedoresDisponibles([
+            { 
+              id: 'test-1', 
+              nombre: 'Proveedor de Prueba 1',
+              cif: 'B12345678',
+              telefono: '123456789',
+              email: 'prueba1@ejemplo.com',
+              direccion: 'Calle de Prueba, 123'
+            },
+            { 
+              id: 'test-2', 
+              nombre: 'Proveedor de Prueba 2',
+              cif: 'A87654321',
+              telefono: '987654321',
+              email: 'prueba2@ejemplo.com',
+              direccion: 'Avenida de Prueba, 456'
+            }
+          ]);
         }
-        
-        setPermisoIA(tieneAccesoIA);
-
-        // Si no tiene acceso a IA, no cargar más datos
-        if (!tieneAccesoIA) {
-          return;
-        }
-
-        // Cargar proveedores existentes
-        const { data: proveedores, error: proveedoresError } = await supabase
-          .from("proveedores")
-          .select("id, nombre, cif, telefono, email, direccion")
-          .eq("usuario_id", sessionData.session.user.id)
-          .order("nombre");
-
-        if (proveedoresError) {
-          console.error("Error al cargar proveedores:", proveedoresError);
-          setError("Error al cargar la lista de proveedores.");
-          return;
-        }
-
-        setProveedoresDisponibles(proveedores || []);
-
       } catch (err) {
-        console.error("Error en verificación de permisos:", err);
-        setError("Error al verificar tus permisos. Por favor, intenta nuevamente.");
-      } finally {
-        setVerificandoPermisos(false);
+        console.error("Error al cargar proveedores:", err);
       }
     };
+    
+    cargarProveedores();
+    
+    // Limpiar la cámara al desmontar el componente
+    return () => {
+      detenerCamara();
+    };
+  }, []);
 
-    verificarPermisos();
-  }, [router]);
-
+  // Funciones para manejar la cámara
+  const iniciarCamara = async () => {
+    try {
+      setMostrandoCamara(true);
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error al acceder a la cámara:", err);
+      setError("No se pudo acceder a la cámara. Verifica los permisos.");
+    }
+  };
+  
+  const detenerCamara = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
+    setMostrandoCamara(false);
+  };
+  
+  const capturarImagen = () => {
+    if (!videoRef.current) return;
+    
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext("2d");
+    
+    if (ctx) {
+      ctx.drawImage(videoRef.current, 0, 0);
+      const imageData = canvas.toDataURL("image/jpeg");
+      
+      // Crear un objeto File a partir del base64
+      fetch(imageData)
+        .then(res => res.blob())
+        .then(blob => {
+          const file = new File([blob], "captura.jpeg", { type: "image/jpeg" });
+          setImagen(file);
+          setImagenCapturada(imageData);
+          setIsPdf(false);
+          detenerCamara();
+          procesarImagen(file);
+        });
+    }
+  };
+  
   const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     
@@ -158,7 +196,10 @@ export default function EscanearFacturaPage() {
       
       // Crear URL para previsualización
       const objectUrl = URL.createObjectURL(file);
-      setPreviewUrl(objectUrl);
+      setImagenCapturada(objectUrl);
+      
+      // Detectar si es PDF
+      setIsPdf(file.type === 'application/pdf');
       
       // Limpiar datos previos
       setDatosEscaneados(null);
@@ -166,14 +207,14 @@ export default function EscanearFacturaPage() {
       setProveedorSeleccionado("");
       setError(null);
       
-      // Actualizar el estado isPdf según el tipo de archivo
-      setIsPdf(file.type === 'application/pdf');
+      // Procesar automáticamente
+      procesarImagen(file);
     }
   };
-
-  const handleProcesarImagen = async () => {
-    if (!imagen) {
-      setError("Por favor, selecciona una imagen primero.");
+  
+  const procesarImagen = async (archivo: File) => {
+    if (!archivo) {
+      setError("Por favor, selecciona una imagen o PDF primero.");
       return;
     }
 
@@ -183,60 +224,62 @@ export default function EscanearFacturaPage() {
 
       // Verificar tamaño máximo (10MB)
       const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB en bytes
-      if (imagen.size > MAX_FILE_SIZE) {
-        throw new Error("La imagen es demasiado grande. El tamaño máximo permitido es 10MB.");
-      }
-
-      // Verificar formato aceptado
-      const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-      if (!acceptedTypes.includes(imagen.type)) {
-        throw new Error("Formato de archivo no soportado. Por favor, usa JPEG, PNG, WEBP o PDF.");
+      if (archivo.size > MAX_FILE_SIZE) {
+        throw new Error("El archivo es demasiado grande. El tamaño máximo permitido es 10MB.");
       }
 
       // Crear FormData para enviar la imagen
       const formData = new FormData();
-      formData.append("image", imagen);
-
-      // Enviar a la API para procesar
+      formData.append("image", archivo);
+      
+      // Genera un ID de solicitud único para seguimiento
+      const requestId = `req-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      formData.append("requestId", requestId);
+      
+      console.log("Enviando solicitud a API de escaneo...");
+      
+      // Enviar a la API principal de escaneo
       const response = await fetch("/api/scan-invoice", {
         method: "POST",
         body: formData,
+        cache: 'no-cache' // Evitar cacheo
       });
-
+      
+      console.log("Respuesta recibida, estado:", response.status);
       const data = await response.json();
+      console.log("Datos de respuesta:", data);
 
       if (!response.ok) {
-        // Manejar diferentes tipos de errores
-        if (response.status === 400) {
-          throw new Error(data.error || "Formato incorrecto. Verifica que la imagen sea clara.");
-        } else if (response.status === 403 && data.requiereActualizacion) {
-          setError(data.error);
-          router.push("/membresias");
-          return;
-        } else if (response.status === 429) {
-          throw new Error("Has alcanzado el límite de peticiones. Intenta de nuevo más tarde.");
-        } else {
-          throw new Error(data.error || "Error al procesar la imagen");
-        }
+        throw new Error(data.error || `Error al procesar (${response.status})`);
       }
 
-      // Si no hay datos o no se han detectado elementos en la factura
-      if (!data.datos || (!data.datos.proveedor?.nombre && (!data.datos.articulos || data.datos.articulos.length === 0))) {
-        throw new Error("No se ha podido extraer información de la imagen. Intenta con otra imagen más clara o con mejor iluminación.");
+      // Verificar si hubo un error que se recuperó con datos simulados
+      if (data.error_detalle && data.error_detalle.recuperado) {
+        console.warn("Se detectó un error recuperado:", data.error_detalle);
+        setError(`Atención: Se han generado datos simulados debido a un error. Tipo: ${data.error_detalle.tipo}`);
       }
 
       // Guardar los datos procesados
       setDatosEscaneados(data.datos);
       
-      // Si hay un proveedor existente, guardarlo
-      if (data.proveedorExistente) {
-        setProveedorExistente(data.proveedorExistente);
-        setProveedorSeleccionado(data.proveedorExistente.id);
+      // Comprobar si hay un proveedor que coincida con los datos escaneados
+      if (data.datos?.proveedor?.cif) {
+        const proveedorMatch = proveedoresDisponibles.find(
+          p => p.cif && p.cif.toLowerCase() === data.datos.proveedor.cif.toLowerCase()
+        );
+        
+        if (proveedorMatch) {
+          setProveedorExistente(proveedorMatch);
+          setProveedorSeleccionado(proveedorMatch.id);
+        }
       }
+      
+      // Mensaje de éxito en lugar de error
+      console.log("Procesamiento exitoso:", data.message);
 
     } catch (err: any) {
-      console.error("Error al procesar imagen:", err);
-      setError(err.message || "Error al procesar la imagen. Por favor, intenta nuevamente.");
+      console.error("Error al procesar:", err);
+      setError(err.message || "Error al procesar. Por favor, intenta nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -252,6 +295,12 @@ export default function EscanearFacturaPage() {
       setGuardando(true);
       setError(null);
 
+      // Verificar si hay sesión para determinar cómo proceder
+      const { data: sessionData } = await supabase.auth.getSession();
+      const haySessionActiva = !!sessionData?.session?.user?.id;
+
+      console.log("Estado de sesión al guardar:", haySessionActiva ? "Activa" : "Inactiva");
+
       // Preparar datos para enviar
       const datosParaGuardar = {
         proveedor: datosEscaneados.proveedor,
@@ -259,7 +308,28 @@ export default function EscanearFacturaPage() {
         proveedorExistenteId: proveedorSeleccionado || null
       };
 
-      // Enviar a la API para guardar
+      if (!haySessionActiva) {
+        // Modo de prueba - Simular guardado exitoso
+        console.log("MODO PRUEBA: Simulando guardado exitoso de datos:", datosParaGuardar);
+        
+        // Esperar un momento para simular el procesamiento
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        setError(null);
+        setGuardando(false);
+        
+        // Mostrar mensaje de éxito y detalles
+        alert("MODO PRUEBA: Datos procesados correctamente:\n" +
+              `- Proveedor: ${datosEscaneados.proveedor.nombre}\n` +
+              `- Artículos: ${datosEscaneados.articulos.length}\n\n` +
+              "No se han guardado realmente los datos porque no hay sesión activa.");
+        
+        // No redirigimos en modo prueba
+        return;
+      }
+
+      // Si hay sesión, enviar a la API para guardar
+      console.log("Enviando datos a la API para guardar");
       const response = await fetch("/api/save-scanned-invoice", {
         method: "POST",
         headers: {
@@ -311,40 +381,16 @@ export default function EscanearFacturaPage() {
       }
     });
   };
-
-  // Si estamos verificando permisos, mostrar cargando
-  if (verificandoPermisos) {
-    return (
-      <AppLayout>
-        <div className="py-8">
-          <Loading text="Verificando permisos..." />
-        </div>
-      </AppLayout>
-    );
-  }
-
-  // Si el usuario no tiene permiso para funciones de IA
-  if (permisoIA === false) {
-    return (
-      <AppLayout>
-        <div className="py-8">
-          <h1 className="text-2xl font-bold mb-6">Escanear Factura con IA</h1>
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-md mb-6">
-            <h2 className="text-lg font-semibold mb-2">Función Premium</h2>
-            <p className="mb-3">
-              El escaneo de facturas con IA es una característica exclusiva del Plan Premium.
-            </p>
-            <Link 
-              href="/membresias" 
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md inline-block hover:bg-indigo-700"
-            >
-              Actualizar a Plan Premium
-            </Link>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
+  
+  const reiniciarCaptura = () => {
+    setImagen(null);
+    setImagenCapturada(null);
+    setDatosEscaneados(null);
+    setError(null);
+    setIsPdf(false);
+    setProveedorExistente(null);
+    setProveedorSeleccionado("");
+  };
 
   return (
     <AppLayout>
@@ -364,28 +410,28 @@ export default function EscanearFacturaPage() {
             {error}
           </div>
         )}
-
+        
+        {/* Sección de captura */}
         <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">Seleccionar Imagen de Factura</h2>
-          <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*,application/pdf,.pdf"
-                className="hidden"
-                onChange={handleImagenChange}
-              />
-              <div className="flex flex-col sm:flex-row gap-2">
+          <h2 className="text-lg font-semibold mb-4">Seleccionar o Capturar Imagen</h2>
+          
+          {!imagenCapturada && !mostrandoCamara && (
+            <div className="flex flex-col md:flex-row gap-4 mb-4">
+              {/* Botones para seleccionar archivo o usar cámara */}
+              <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                {/* Input oculto para selección de archivos */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*,application/pdf,.pdf"
+                  className="hidden"
+                  onChange={handleImagenChange}
+                />
+                
+                {/* Botón para seleccionar PDF */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      // Asegurarse de que no haya atributo capture para archivos
-                      fileInputRef.current.removeAttribute('capture');
-                      fileInputRef.current.click();
-                    }
-                  }}
+                  onClick={() => fileInputRef.current?.click()}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -393,65 +439,57 @@ export default function EscanearFacturaPage() {
                   </svg>
                   Seleccionar PDF
                 </button>
+                
+                {/* Botón para usar la cámara */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      // Usar "user" para la cámara frontal (webcam)
-                      fileInputRef.current.setAttribute('capture', 'user');
-                      fileInputRef.current.click();
-                    }
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  Usar Webcam
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      // Usar "environment" para la cámara trasera del móvil
-                      fileInputRef.current.setAttribute('capture', 'environment');
-                      fileInputRef.current.click();
-                    }
-                  }}
+                  onClick={iniciarCamara}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Cámara trasera
+                  Usar Cámara
                 </button>
               </div>
-              {imagen && (
-                <p className="mt-2 text-sm text-gray-600">
-                  Archivo seleccionado: {imagen.name}
-                </p>
-              )}
             </div>
-            <div className="md:w-1/3">
-              <button
-                type="button"
-                onClick={handleProcesarImagen}
-                disabled={!imagen || loading}
-                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                {loading ? "Procesando..." : "Procesar Imagen"}
-              </button>
+          )}
+          
+          {/* Previsualización de la cámara */}
+          {mostrandoCamara && (
+            <div className="mb-4">
+              <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex justify-between gap-4">
+                <button 
+                  onClick={detenerCamara} 
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={capturarImagen} 
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                >
+                  Capturar
+                </button>
+              </div>
             </div>
-          </div>
-
+          )}
+          
           {/* Previsualización de la imagen */}
-          {previewUrl && (
-            <div className="mt-4">
-              <h3 className="text-md font-medium mb-2">Previsualización:</h3>
-              <div className="border border-gray-300 rounded-md p-2 max-w-md mx-auto">
+          {imagenCapturada && (
+            <div className="mb-4">
+              <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '300px' }}>
                 {isPdf ? (
-                  <div className="text-center py-4 flex flex-col items-center">
+                  <div className="text-center py-4 flex flex-col items-center h-full justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
@@ -460,16 +498,47 @@ export default function EscanearFacturaPage() {
                   </div>
                 ) : (
                   <img
-                    src={previewUrl}
-                    alt="Previsualización"
-                    className="max-h-64 max-w-full mx-auto"
+                    src={imagenCapturada}
+                    alt="Imagen capturada"
+                    className="w-full h-full object-contain"
                   />
+                )}
+              </div>
+              <div className="flex justify-between gap-4">
+                <button 
+                  onClick={reiniciarCaptura} 
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Nueva Captura
+                </button>
+                {loading ? (
+                  <button 
+                    disabled
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md opacity-50 cursor-not-allowed"
+                  >
+                    Procesando...
+                  </button>
+                ) : datosEscaneados ? (
+                  <button 
+                    onClick={handleGuardarDatos} 
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    Guardar Datos
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => procesarImagen(imagen!)} 
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    Procesar
+                  </button>
                 )}
               </div>
             </div>
           )}
           
-          {!imagen && (
+          {/* Consejos para mejores resultados */}
+          {!imagenCapturada && !mostrandoCamara && (
             <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-md">
               <h3 className="text-md font-medium mb-1">Consejos para mejores resultados:</h3>
               <ul className="list-disc list-inside text-sm">
@@ -484,10 +553,10 @@ export default function EscanearFacturaPage() {
         </div>
 
         {loading && (
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
-            <Loading text="Procesando factura con IA..." />
+          <div className="bg-white shadow rounded-lg p-6 mb-6 text-center">
+            <Loading text="Procesando documento con IA..." />
             <p className="text-center text-gray-600 mt-2">
-              Este proceso puede tardar unos segundos...
+              Este proceso puede tardar hasta 20-30 segundos dependiendo del tamaño del documento...
             </p>
           </div>
         )}
@@ -676,17 +745,17 @@ export default function EscanearFacturaPage() {
                   </table>
                 </div>
               )}
-            </div>
-            
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={handleGuardarDatos}
-                disabled={guardando}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                {guardando ? "Guardando..." : "Guardar Datos"}
-              </button>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleGuardarDatos}
+                  disabled={guardando}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {guardando ? "Guardando..." : "Guardar Datos"}
+                </button>
+              </div>
             </div>
           </div>
         )}
