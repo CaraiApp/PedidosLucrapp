@@ -193,40 +193,41 @@ export default function PerfilUsuario() {
       const fechaFin = new Date();
       fechaFin.setFullYear(fechaFin.getFullYear() + 1); // Plan gratuito por 1 año
       
-      // Crear registro de membresía
-      const { data: membresia, error: membresiaError } = await supabase
-        .from("membresias_usuarios")
-        .insert({
-          usuario_id: userId,
-          membresia_id: "13fae609-2679-47fa-9731-e2f1badc4a61", // ID de la membresía gratuita
-          fecha_inicio: fechaInicio,
-          fecha_fin: fechaFin.toISOString(),
-          estado: "activa"
-        })
-        .select()
-        .single();
-        
-      if (membresiaError) throw membresiaError;
+      // ID fijo del plan gratuito
+      const tipoPlanGratuitoId = "13fae609-2679-47fa-9731-e2f1badc4a61";
       
-      // Actualizar el usuario para establecer esta membresía como la activa
-      const { error: updateError } = await supabase
-        .from("usuarios")
-        .update({ membresia_activa_id: membresia.id })
-        .eq("id", userId);
-        
-      if (updateError) throw updateError;
+      // Usar la API para evitar problemas con RLS
+      const response = await fetch('/api/create-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          tipoMembresiaId: tipoPlanGratuitoId,
+          fechaInicio: fechaInicio,
+          fechaFin: fechaFin.toISOString(),
+          estado: 'activa'
+        }),
+      });
       
-      // Recargar datos
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Error al crear membresía gratuita");
+      }
+      
+      // Recargar datos del usuario
       await cargarDatosUsuario();
       
       setMensaje({
         texto: "Membresía gratuita asignada correctamente",
         tipo: "exito"
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error al asignar membresía gratuita:", err);
       setMensaje({
-        texto: "No se pudo asignar la membresía gratuita",
+        texto: `No se pudo asignar la membresía gratuita: ${err.message || ''}`,
         tipo: "error"
       });
     } finally {

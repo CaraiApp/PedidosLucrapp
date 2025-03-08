@@ -155,31 +155,33 @@ export default function Register() {
         console.warn("Error al obtener plan gratuito, usando ID fijo:", err);
       }
 
-      // 4. Crear membresía gratuita
+      // 4. Crear membresía gratuita a través de la API para evitar problemas con RLS
+      const currentDate = new Date();
       const oneYearFromNow = new Date();
       oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
 
-      const { data: membresia, error: membresiaError } = await supabase
-        .from("membresias_usuarios")
-        .insert({
-          usuario_id: authData.user.id,
-          tipo_membresia_id: tipoPlanGratuitoId,
-          fecha_inicio: new Date().toISOString(),
-          fecha_fin: oneYearFromNow.toISOString(),
-          estado: "activa",
-        })
-        .select()
-        .single();
+      // Usar nuestra API interna para crear la membresía (evita RLS)
+      const response = await fetch('/api/create-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: authData.user.id,
+          tipoMembresiaId: tipoPlanGratuitoId,
+          fechaInicio: currentDate.toISOString(),
+          fechaFin: oneYearFromNow.toISOString(),
+          estado: 'activa'
+        }),
+      });
 
-      if (membresiaError) throw membresiaError;
-
-      // 5. Actualizar la membresía activa del usuario
-      const { error: updateUserError } = await supabase
-        .from("usuarios")
-        .update({ membresia_activa_id: membresia.id })
-        .eq("id", authData.user.id);
-
-      if (updateUserError) throw updateUserError;
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al crear membresía gratuita');
+      }
+      
+      console.log('Membresía gratuita creada correctamente a través de la API');
 
       // Redirigir al login
       router.push("/login?registro=exitoso");

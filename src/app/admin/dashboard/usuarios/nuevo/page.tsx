@@ -208,38 +208,30 @@ export default function NuevoUsuario() {
         // Continuamos con el ID fijo como fallback
       }
       
-      // Crear registro de membresía
-      const { data: membresia, error: membresiaError } = await supabase
-        .from("membresias_usuarios")
-        .insert({
-          usuario_id: userId,
-          tipo_membresia_id: tipoPlanGratuitoId,
-          fecha_inicio: fechaInicio,
-          fecha_fin: fechaFin.toISOString(),
-          estado: "activa"
-        })
-        .select()
-        .single();
-        
-      if (membresiaError) {
-        console.error("Error al crear membresía:", membresiaError);
-        throw membresiaError;
+      // Usar la API para evitar problemas con RLS
+      console.log("Usando API para crear membresía...");
+      const response = await fetch('/api/create-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          tipoMembresiaId: tipoPlanGratuitoId,
+          fechaInicio: fechaInicio,
+          fechaFin: fechaFin.toISOString(),
+          estado: 'activa'
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        console.error("Error al crear membresía a través de API:", result.error);
+        throw new Error(result.error || "Error al crear membresía");
       }
       
-      console.log("Membresía creada con ID:", membresia.id);
-      
-      // Actualizar usuario para establecer esta membresía como activa
-      const { error: updateError } = await supabase
-        .from("usuarios")
-        .update({ membresia_activa_id: membresia.id })
-        .eq("id", userId);
-        
-      if (updateError) {
-        console.error("Error al actualizar referencia de membresía:", updateError);
-        throw updateError;
-      }
-      
-      console.log("Membresía gratuita asignada con éxito");
+      console.log("Membresía gratuita asignada con éxito a través de API");
       return true;
     } catch (error) {
       console.error("Error en asignación de membresía:", error);
