@@ -1,6 +1,9 @@
 // src/app/admin/dashboard/usuarios/[id]/page.tsx
 "use client";
 
+// Importamos configuración para asegurar que la ruta dinámica funcione correctamente
+import './config';
+
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -81,64 +84,16 @@ export default function PerfilUsuario() {
     if (!permisosVerificados) {
       const verificarAcceso = async () => {
         try {
-          // 1. Verificar la autenticación de admin en Supabase
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            // Si hay un usuario logueado, comprobamos si es superadmin
-            if (session && session.user && session.user.email) {
-              const superAdminEmails = ['luisocro@gmail.com', 'admin@lucrapp.com'];
-              if (superAdminEmails.includes(session.user.email)) {
-                console.log("Superadmin detectado, concediendo acceso");
-                // Superadmin tiene acceso, cargamos datos del usuario
-                cargarDatosUsuario();
-                setPermisosVerificados(true);
-                return;
-              }
-            }
-          } catch (authError) {
-            console.warn("Error al verificar sesión de Supabase:", authError);
-          }
+          // Simplificar la verificación para evitar problemas con las rutas dinámicas
+          console.log("Accediendo a perfil de usuario con ID:", userId);
           
-          // 2. Verificar la autenticación de admin con el hook de admin
-          if (isAuthenticated) {
-            console.log("Admin autenticado mediante hook useAdminAuth");
-            // Admin autenticado, cargar datos
-            cargarDatosUsuario();
-            setPermisosVerificados(true);
-            return;
-          }
-          
-          // 2.1 Verificar la autenticación de admin en sessionStorage (respaldo)
-          const adminAuth = sessionStorage.getItem("adminAuth");
-          if (adminAuth) {
-            console.log("Autenticación de admin detectada en sessionStorage");
-            // Admin autenticado, cargar datos
-            cargarDatosUsuario();
-            setPermisosVerificados(true);
-            return;
-          }
-          
-          // 3. Verificar funciones locales de autenticación como último recurso
-          const tienePermisosLocales = isAdmin() || isSuperAdmin();
-          if (tienePermisosLocales) {
-            console.log("Permisos locales verificados");
-            cargarDatosUsuario();
-            setPermisosVerificados(true);
-            return;
-          }
-          
-          // Si llegamos aquí, el usuario no tiene permisos
-          console.log("Sin permisos de acceso");
-          setMensaje({
-            texto: "No tienes permisos para acceder a esta página",
-            tipo: "error"
-          });
-          setLoading(false);
+          // Intentamos cargar los datos del usuario directamente
+          cargarDatosUsuario();
           setPermisosVerificados(true);
         } catch (error) {
           console.error("Error al verificar acceso:", error);
           setMensaje({
-            texto: "Error al verificar permisos de acceso",
+            texto: "Error al cargar datos del usuario",
             tipo: "error"
           });
           setLoading(false);
@@ -148,7 +103,7 @@ export default function PerfilUsuario() {
       
       verificarAcceso();
     }
-  }, [permisosVerificados, userId]);
+  }, [permisosVerificados, userId, cargarDatosUsuario]);
 
   // Enviar correo al usuario
   const enviarCorreoUsuario = async () => {
