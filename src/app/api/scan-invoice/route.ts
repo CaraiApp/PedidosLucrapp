@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const userId = "def38ca4-63a6-4ce1-8dbd-32abda08a14c";
 
     // Obtener email del usuario
-    let userEmail = "luiscrouseillesvillena@gmail.com";
+    const userEmail = "luiscrouseillesvillena@gmail.com";
 
     // Omitir por completo la verificación de membresía para modo de desarrollo
     console.log("MODO DESARROLLO: Omitiendo verificación de membresía");

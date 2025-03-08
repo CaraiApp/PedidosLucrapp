@@ -519,6 +519,8 @@ function EscanerFactura() {
                       <p className="text-gray-500 text-sm mt-1">Documento PDF seleccionado</p>
                     </div>
                   ) : (
+                    // Using next/image is recommended, but using img for now
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={imagenCapturada}
                       alt="Imagen capturada"

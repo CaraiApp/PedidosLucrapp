@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run lint && npm run build",
   "installCommand": "npm install",
   "framework": "nextjs",
   "outputDirectory": ".next",
@@ -22,12 +22,21 @@
         {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
         }
       ]
     }
   ],
   "env": {
     "NEXT_PUBLIC_SITE_URL": "https://pedidos.lucrapp.com",
-    "NEXT_PUBLIC_APP_URL": "https://pedidos.lucrapp.com"
+    "NEXT_PUBLIC_APP_URL": "https://pedidos.lucrapp.com",
+    "NODE_ENV": "production"
   }
 }

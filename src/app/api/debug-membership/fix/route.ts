@@ -49,20 +49,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Buscar la membresía premium (con AI)
-    let premiumMembership = memberships?.find(m => 
+    const premiumMembership = memberships?.find(m => 
       m.estado === 'activa' && m.tipo_membresia?.tiene_ai === true
     );
     
     // 4. Si no hay membresía premium activa, buscar cualquier membresía activa
-    let activeMembership = premiumMembership || memberships?.find(m => m.estado === 'activa');
+    const activeMembership = premiumMembership || memberships?.find(m => m.estado === 'activa');
     
     // 5. Si no hay membresía activa, buscar la membresía más reciente
     let targetMembership = activeMembership || (memberships?.length ? memberships[0] : null);
     
     // Si no se encontró ninguna membresía, necesitamos crear una nueva (gratuita)
     if (!targetMembership) {
-      let freeMembershipTypeId;
-      
       // Intentar encontrar el tipo de membresía gratuita o cualquier tipo de membresía
       const { data: membershipTypes, error: typesError } = await supabase
         .from("membresia_tipos")
@@ -94,7 +92,7 @@ export async function POST(request: NextRequest) {
       );
       
       // Si no encontramos una gratuita, usar la primera disponible
-      freeMembershipTypeId = freeMembershipType?.id || membershipTypes[0].id;
+      const freeMembershipTypeId = freeMembershipType?.id || membershipTypes[0].id;
       
       console.log(`Usando tipo de membresía: ${freeMembershipTypeId}`);
       
