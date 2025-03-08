@@ -6,20 +6,9 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'https://pedidos.lucrapp.com',
   },
-  // Configuración para evitar problemas con la sección admin
+  // Simplificamos la configuración para ser más estable en producción
   experimental: {
     serverComponentsExternalPackages: ['crypto-js'],
-    // Esto evita la precompilación de páginas con 'use client'
-    // que puede causar problemas con funciones como revalidate y generateViewport
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
-  // Configuración para redirecciones de página para rutas dinámicas
-  trailingSlash: false,
-  // Forzar páginas dinámicas en build time
-  dynamicPageOptions: {
-    isDynamic: true,
   },
   // Esta es una configuración importante para evitar problemas con la compilación
   typescript: {

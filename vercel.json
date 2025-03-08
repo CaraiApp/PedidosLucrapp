@@ -5,7 +5,7 @@
   "framework": "nextjs",
   "outputDirectory": ".next",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/api/(.*)", "destination": "/api/$1" }
   ],
   "headers": [
     {

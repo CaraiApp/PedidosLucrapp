@@ -1,9 +1,6 @@
 // src/app/admin/dashboard/usuarios/[id]/page.tsx
 "use client";
 
-// Importamos configuración para asegurar que la ruta dinámica funcione correctamente
-import './config';
-
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";

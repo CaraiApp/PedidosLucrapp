@@ -2,57 +2,40 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Este middleware protege todas las rutas que comienzan con /dashboard, /proveedores, /articulos, /listas
+// Este middleware es simplificado para mejor soporte en producción
 export async function middleware(req: NextRequest) {
+  // Primero, verificamos si es una ruta que no necesita verificación
+  const publicPaths = ['/login', '/register', '/', '/api'];
+  const isPublicPath = publicPaths.some(path => 
+    req.nextUrl.pathname === path || req.nextUrl.pathname.startsWith(`${path}/`)
+  );
+  
+  // Si es una ruta pública, permitir acceso sin verificación
+  if (isPublicPath) {
+    return NextResponse.next();
+  }
+  
+  // Para todas las demás rutas, verificar autenticación
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  // Si el usuario no está autenticado y está intentando acceder a rutas protegidas
-  if (
-    !session &&
-    (req.nextUrl.pathname.startsWith("/dashboard") ||
-      req.nextUrl.pathname.startsWith("/proveedores") ||
-      req.nextUrl.pathname.startsWith("/articulos") ||
-      req.nextUrl.pathname.startsWith("/listas-compra") ||
-      req.nextUrl.pathname.startsWith("/membresias"))
-  ) {
-    // Crear la URL de redirección al login
+  // Si no hay sesión, redirigir al login
+  if (!session) {
     const redirectUrl = new URL("/login", req.url);
-    
-    // Guardar la URL original para redirección después del login
-    if (req.nextUrl.pathname) {
-      redirectUrl.searchParams.set("redirectTo", req.nextUrl.pathname);
-    }
-    
+    redirectUrl.searchParams.set("redirectTo", req.nextUrl.pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Si el usuario ya está autenticado e intenta acceder a página de login o registro, redirigir al dashboard
-  if (
-    session &&
-    (req.nextUrl.pathname.startsWith("/login") ||
-      req.nextUrl.pathname.startsWith("/register"))
-  ) {
-    // Agregamos un pequeño retraso para asegurar que la sesión esté completamente cargada
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
+  // Usuario autenticado, permitir acceso
   return res;
 }
 
-// Configurar rutas para las que se aplicará el middleware
+// Configuración más simple y efectiva para producción
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/proveedores/:path*",
-    "/articulos/:path*",
-    "/listas-compra/:path*",
-    "/membresias/:path*",
-    "/login",
-    "/register",
+    // Excluir archivos estáticos y API routes
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

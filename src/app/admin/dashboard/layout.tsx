@@ -351,9 +351,12 @@ function AdminDashboardLayout({ children }: AdminLayoutProps) {
 
 // Ya tenemos el AdminAuthProvider en admin/layout.tsx
 export default function AdminLayoutWithAuth({ children }: AdminLayoutProps) {
+  // Wrapper para asegurar el funcionamiento en producción
   return (
     <AdminDashboardLayout>
-      {children}
+      <div data-page-type="admin-dashboard">
+        {children}
+      </div>
     </AdminDashboardLayout>
   );
 }
