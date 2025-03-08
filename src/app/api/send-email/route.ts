@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       );
     }
     
-    // Enviar el correo usando la implementación del servidor
+    // Enviar el correo usando la implementación del servidor con control de límites
     const resultado = await enviarCorreoDesdeServidor(destinatario, asunto, contenido);
     
     // Registrar detalladamente el resultado para diagnóstico
@@ -55,6 +55,22 @@ export async function POST(request: Request) {
     
     if (!resultado.success) {
       console.error('Error al enviar correo:', resultado.error);
+      
+      // Si es un error de límite de tasa, devolvemos un código 429 (Too Many Requests)
+      if (resultado.error?.includes('Límite de envío') || 
+          resultado.error?.includes('rate limit') || 
+          resultado.error?.includes('exceeded')) {
+        return NextResponse.json(
+          { 
+            error: 'Límite de envío de correos alcanzado. Por favor, espera un momento antes de intentar nuevamente.',
+            details: resultado.error,
+            rateLimited: true
+          },
+          { status: 429 }
+        );
+      }
+      
+      // Para otros errores
       return NextResponse.json(
         { error: 'Error al enviar el correo', details: resultado.error },
         { status: 500 }

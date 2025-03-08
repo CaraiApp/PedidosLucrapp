@@ -4,8 +4,58 @@ import sgMail from '@sendgrid/mail';
 // Inicializar SendGrid (se hará una vez que se establezca la API key)
 let sendgridInitialized = false;
 
+// Control de límites de tasa para envío de emails
+const EMAIL_RATE_LIMIT = {
+  maxEmails: 10, // Máximo número de emails en el período
+  periodMs: 60 * 1000, // Período de 1 minuto (en ms)
+  waitTimeMs: 1500, // Tiempo de espera entre emails (ms)
+  retryCount: 3, // Número de reintentos si falla por límite de tasa
+  retryDelay: 2000, // Tiempo de espera entre reintentos (ms)
+  emailsSent: 0, // Contador de emails enviados
+  lastResetTime: Date.now(), // Último momento de reinicio del contador
+};
+
+// Función para resetear el contador si ha pasado el período
+function checkAndResetLimit() {
+  const now = Date.now();
+  if (now - EMAIL_RATE_LIMIT.lastResetTime > EMAIL_RATE_LIMIT.periodMs) {
+    console.log(`Reseteando contador de emails. Anterior: ${EMAIL_RATE_LIMIT.emailsSent}`);
+    EMAIL_RATE_LIMIT.emailsSent = 0;
+    EMAIL_RATE_LIMIT.lastResetTime = now;
+    return true;
+  }
+  return false;
+}
+
+// Función para esperar antes de enviar otro email
+function waitBetweenEmails() {
+  return new Promise(resolve => setTimeout(resolve, EMAIL_RATE_LIMIT.waitTimeMs));
+}
+
+// Función para manejar reintentos con espera exponencial
+async function withRetry<T>(fn: () => Promise<T>, retries = EMAIL_RATE_LIMIT.retryCount): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (
+      retries > 0 && 
+      (error.message?.includes('rate limit') || 
+       error.message?.includes('too many requests') ||
+       error.message?.includes('exceeded'))
+    ) {
+      console.log(`Error de límite de tasa. Reintentando en ${EMAIL_RATE_LIMIT.retryDelay}ms. Intentos restantes: ${retries}`);
+      await new Promise(resolve => setTimeout(resolve, EMAIL_RATE_LIMIT.retryDelay));
+      // Incrementamos el tiempo de espera para el próximo reintento (espera exponencial)
+      EMAIL_RATE_LIMIT.retryDelay *= 2;
+      return withRetry(fn, retries - 1);
+    }
+    throw error;
+  }
+}
+
 /**
  * Envía un correo electrónico usando SendGrid directamente (solo servidor)
+ * Con control de límites de tasa y reintentos automáticos
  * @param destinatario Email del destinatario
  * @param asunto Asunto del correo
  * @param contenidoHtml Contenido HTML del correo
@@ -32,15 +82,28 @@ export async function enviarCorreoDesdeServidor(
       sendgridInitialized = true;
     }
 
+    // Comprobar si debemos resetear el contador de límite
+    checkAndResetLimit();
+
+    // Comprobar si hemos excedido el límite
+    if (EMAIL_RATE_LIMIT.emailsSent >= EMAIL_RATE_LIMIT.maxEmails) {
+      console.log(`Límite de emails alcanzado (${EMAIL_RATE_LIMIT.emailsSent}/${EMAIL_RATE_LIMIT.maxEmails}). Esperando al próximo período.`);
+      // Esperamos hasta el inicio del siguiente período y reiniciamos
+      await new Promise(resolve => setTimeout(resolve, EMAIL_RATE_LIMIT.periodMs));
+      EMAIL_RATE_LIMIT.emailsSent = 0;
+      EMAIL_RATE_LIMIT.lastResetTime = Date.now();
+    }
+
+    // Esperamos un poco entre emails para no saturar la API
+    if (EMAIL_RATE_LIMIT.emailsSent > 0) {
+      await waitBetweenEmails();
+    }
+
     const emailRemitente = process.env.EMAIL_REMITENTE || "noreply@lucrapp.com";
     const nombreRemitente = process.env.NOMBRE_REMITENTE || "Lucrapp";
     
     console.log(`Configurando correo desde: ${emailRemitente} (${nombreRemitente})`);
     console.log(`Para enviar a: ${destinatario}`);
-    
-    // IMPORTANTE: El email remitente debe estar verificado en SendGrid
-    // Si estás en modo de pruebas, es más fácil usar una dirección de Gmail o similar
-    // que ya esté verificada para pruebas
     
     const mensaje = {
       to: destinatario,
@@ -54,8 +117,15 @@ export async function enviarCorreoDesdeServidor(
       text: contenidoHtml.replace(/<[^>]*>/g, '')
     };
 
-    console.log("Enviando mensaje a través de SendGrid...");
-    const response = await sgMail.send(mensaje);
+    console.log(`Enviando email #${EMAIL_RATE_LIMIT.emailsSent + 1} en este período...`);
+    
+    // Usar la función de reintento para enviar el correo
+    const response = await withRetry(async () => {
+      return await sgMail.send(mensaje);
+    });
+    
+    // Incrementamos el contador de emails enviados
+    EMAIL_RATE_LIMIT.emailsSent++;
     
     console.log("Correo enviado correctamente:", response[0].statusCode);
     return { 
@@ -79,8 +149,11 @@ export async function enviarCorreoDesdeServidor(
       }
     }
     
+    // Manejo de errores específicos
     if (errorMsg.includes("does not exist or is not verified")) {
       errorMsg = "El remitente no está verificado en SendGrid. Por favor, verifica tu dirección de correo en la plataforma de SendGrid.";
+    } else if (errorMsg.includes("rate limit") || errorMsg.includes("exceeded") || errorMsg.includes("too many requests")) {
+      errorMsg = "Límite de envío de correos alcanzado. Por favor, intenta más tarde.";
     }
     
     return { 

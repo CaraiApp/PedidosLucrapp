@@ -151,7 +151,12 @@ export default function PerfilUsuario() {
       const result = await response.json();
       
       if (!response.ok) {
-        throw new Error(result.error || "Error al enviar el correo");
+        // Manejar específicamente el error de límite de tasa
+        if (response.status === 429 || result.rateLimited) {
+          throw new Error("Se ha excedido el límite de envío de correos. Por favor, espera unos minutos e intenta nuevamente.");
+        } else {
+          throw new Error(result.error || "Error al enviar el correo");
+        }
       }
       
       // Correo enviado con éxito
@@ -166,9 +171,22 @@ export default function PerfilUsuario() {
       setContenido("");
     } catch (error: any) {
       console.error("Error al enviar correo:", error);
+      
+      // Determinar el tipo de mensaje basado en el error
+      let mensajeError = error.message || "Error desconocido";
+      let tipoMensaje = "error";
+      
+      // Si es por límite de tasa, mostramos un mensaje más amigable
+      if (mensajeError.includes("límite de envío") || 
+          mensajeError.includes("rate limit") || 
+          mensajeError.includes("exceeded")) {
+        mensajeError = "Se ha alcanzado el límite de envío de correos. Por favor, espera unos minutos antes de intentar nuevamente.";
+        tipoMensaje = "advertencia";
+      }
+      
       setMensaje({
-        texto: `Error al enviar correo: ${error.message || "Error desconocido"}`,
-        tipo: "error"
+        texto: mensajeError,
+        tipo: tipoMensaje
       });
     } finally {
       setEnviandoEmail(false);
