@@ -75,27 +75,49 @@ function EscanerFactura() {
       try {
         setVerificandoAcceso(true);
         
-        // 1. Verificar acceso a funciones de IA
-        const responseAcceso = await fetch("/api/verify-ai-access");
+        // 0. Verificar si hay sesión activa primero antes de hacer peticiones al API
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (!session) {
+          setError("No tienes una sesión activa. Por favor, inicia sesión para continuar.");
+          setVerificandoAcceso(false);
+          // No continuamos si no hay sesión
+          return;
+        }
+        
+        // 1. Verificar acceso a funciones de IA con sesión comprobada
+        const responseAcceso = await fetch("/api/verify-ai-access?direct=true", {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        
         const datosAcceso = await responseAcceso.json();
         
-        if (datosAcceso.success && datosAcceso.tieneAcceso) {
+        if (responseAcceso.status === 401) {
+          // Error de autenticación - La sesión no está disponible
+          setError("No se ha detectado una sesión activa. Por favor, vuelve a iniciar sesión.");
+          setTieneAccesoIA(false);
+        } else if (datosAcceso.success && datosAcceso.tieneAcceso) {
+          // Acceso concedido
           setTieneAccesoIA(true);
         } else {
-          // Manejar el caso sin acceso a IA
+          // Cualquier otro caso es denegación de acceso
           setTieneAccesoIA(false);
           setError(datosAcceso.error || "Tu plan actual no incluye funciones de IA. Actualiza a un plan con IA para usar esta característica.");
         }
         
-        // 2. Verificar estado de sesión para cargar proveedores
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        if (sessionData?.session?.user?.id) {
+        // 2. Ya tenemos la sesión del usuario, usarla directamente
+        if (session?.user?.id) {
           // Si hay sesión activa, cargar proveedores reales
           const { data: proveedores, error } = await supabase
             .from("proveedores")
             .select("id, nombre, cif, telefono, email, direccion")
-            .eq("usuario_id", sessionData.session.user.id)
+            .eq("usuario_id", session.user.id)
             .order("nombre");
             
           if (error) {
