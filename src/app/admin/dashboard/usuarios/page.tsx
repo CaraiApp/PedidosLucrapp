@@ -14,19 +14,26 @@ import { useAdminAuth } from "../../auth";
 
 // Componente para mostrar información detallada de membresía
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
-  const [nombrePlan, setNombrePlan] = useState<string>('Plan activo');
+  const [nombrePlan, setNombrePlan] = useState<string | null>(null);
   const [cargando, setCargando] = useState<boolean>(true);
+  const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
     const cargarDatosMembresiaActiva = async () => {
       try {
         setCargando(true);
+        setError(false);
         
-        // Obtener la membresía activa del usuario
+        console.log(`Consultando membresía activa para usuario: ${usuarioId}`);
+        
+        // Consulta directa a la tabla membresias_usuarios filtrando por usuario_id y estado='activa'
         const { data, error } = await supabase
           .from('membresias_usuarios')
           .select(`
             id,
+            usuario_id,
+            tipo_membresia_id,
+            estado,
             tipo_membresia:membresia_tipos (
               id,
               nombre
@@ -34,20 +41,28 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
           `)
           .eq('usuario_id', usuarioId)
           .eq('estado', 'activa')
-          .order('fecha_inicio', { ascending: false })
-          .limit(1)
-          .single();
+          .order('fecha_inicio', { ascending: false });
         
         if (error) {
           console.error("Error al cargar membresía:", error);
+          setError(true);
           return;
         }
         
-        if (data && data.tipo_membresia) {
-          setNombrePlan(data.tipo_membresia.nombre);
+        console.log(`Resultado de consulta para usuario ${usuarioId}:`, data);
+        
+        if (data && data.length > 0 && data[0].tipo_membresia) {
+          // Encontramos al menos una membresía activa
+          const membresia = data[0];
+          console.log(`Membresía activa encontrada: ${membresia.id}, Tipo: ${membresia.tipo_membresia.nombre}`);
+          setNombrePlan(membresia.tipo_membresia.nombre);
+        } else {
+          console.log(`No se encontró membresía activa para el usuario ${usuarioId}`);
+          setNombrePlan(null);
         }
       } catch (err) {
-        console.error("Error:", err);
+        console.error(`Error al cargar datos de membresía para ${usuarioId}:`, err);
+        setError(true);
       } finally {
         setCargando(false);
       }
@@ -58,6 +73,14 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   
   if (cargando) {
     return <span className="text-xs">Cargando...</span>;
+  }
+  
+  if (error) {
+    return <span className="text-xs text-red-500">Error al cargar</span>;
+  }
+  
+  if (!nombrePlan) {
+    return <span className="text-xs text-gray-500">Sin membresía activa</span>;
   }
   
   return <span>{nombrePlan}</span>;
@@ -459,7 +482,7 @@ export default function GestionUsuarios() {
           </button>
           
           {/* Filtros por tipo de membresía */}
-          {tiposMembresia.map(tipo => (
+          {tiposMembresia && tiposMembresia.length > 0 && tiposMembresia.map(tipo => (
             <button
               key={tipo.id}
               onClick={() => {
@@ -578,17 +601,13 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {usuario.tiene_membresia_activa || usuario.membresia_activa_id ? (
-                          <div className="flex flex-col space-y-1">
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              <MembresiaInfo usuarioId={usuario.id} />
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                            Sin membresía
+                        {/* Mostramos directamente el componente MembresiaInfo que consultará la tabla membresias_usuarios */}
+                        {/* Este componente se encarga de hacer la consulta específica y mostrar el resultado */}
+                        <div className="flex flex-col space-y-1">
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                            <MembresiaInfo usuarioId={usuario.id} />
                           </span>
-                        )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatearFecha(usuario.created_at)}
