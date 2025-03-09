@@ -405,8 +405,10 @@ export default function PerfilUsuario() {
     setMensaje(null);
     
     try {
+      console.log("Iniciando proceso de asignación de membresía");
+      
       // Primero desactivamos todas las membresías activas del usuario
-      await fetch('/api/update-membership', {
+      const desactivarResponse = await fetch('/api/update-membership', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -417,10 +419,23 @@ export default function PerfilUsuario() {
         }),
       });
       
+      if (!desactivarResponse.ok) {
+        console.warn("Error al desactivar membresías existentes:", await desactivarResponse.text());
+      } else {
+        console.log("Membresías existentes desactivadas correctamente");
+      }
+      
       // Calcular fechas
       const fechaInicio = new Date().toISOString();
       const fechaFin = new Date();
       fechaFin.setMonth(fechaFin.getMonth() + duracion);
+      
+      console.log("Creando nueva membresía:", {
+        userId,
+        tipoMembresiaId: membresiaSeleccionada,
+        fechaInicio,
+        fechaFin: fechaFin.toISOString()
+      });
       
       // Crear nueva membresía
       const response = await fetch('/api/create-membership', {
@@ -438,12 +453,40 @@ export default function PerfilUsuario() {
       });
       
       const result = await response.json();
+      console.log("Respuesta de creación de membresía:", result);
       
       if (!response.ok || !result.success) {
         throw new Error(result.error || "Error al crear membresía");
       }
       
-      // Recargar datos del usuario
+      // Actualizar referencia en usuario (importante para asegurar consistencia)
+      const membresiaId = result.membresia?.id;
+      if (membresiaId) {
+        console.log("Actualizando referencia de membresía en usuario:", membresiaId);
+        const updateRefResponse = await fetch('/api/update-membership', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            operation: 'update-reference',
+            membresiaId: membresiaId
+          }),
+        });
+        
+        if (!updateRefResponse.ok) {
+          console.warn("Error al actualizar referencia en usuario:", await updateRefResponse.text());
+        } else {
+          console.log("Referencia de membresía actualizada correctamente");
+        }
+      }
+      
+      // Esperar un momento para que los cambios se propaguen en la base de datos
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Forzar recarga de datos del usuario
+      console.log("Recargando datos del usuario después de asignar membresía");
       await cargarDatosUsuario();
       
       setMensaje({
@@ -453,6 +496,11 @@ export default function PerfilUsuario() {
       
       // Cerrar modal
       setMostrarModalMembresia(false);
+      
+      // Forzar recarga de la página para asegurar que se ven los cambios
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (err: any) {
       console.error("Error al asignar membresía:", err);
       setMensaje({
@@ -484,6 +532,8 @@ export default function PerfilUsuario() {
         return;
       }
       
+      console.log("Iniciando asignación de membresía gratuita");
+      
       // Calcular fechas
       const fechaInicio = new Date().toISOString();
       const fechaFin = new Date();
@@ -491,6 +541,18 @@ export default function PerfilUsuario() {
       
       // ID fijo del plan gratuito
       const tipoPlanGratuitoId = "13fae609-2679-47fa-9731-e2f1badc4a61";
+      
+      // Primero desactivamos cualquier membresía activa (por si acaso)
+      await fetch('/api/update-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          operation: 'deactivate-all'
+        }),
+      });
       
       // Usar la API para evitar problemas con RLS
       const response = await fetch('/api/create-membership', {
@@ -508,10 +570,31 @@ export default function PerfilUsuario() {
       });
       
       const result = await response.json();
+      console.log("Respuesta de creación de membresía gratuita:", result);
       
       if (!response.ok || !result.success) {
         throw new Error(result.error || "Error al crear membresía gratuita");
       }
+      
+      // Actualizar referencia en usuario
+      const membresiaId = result.membresia?.id;
+      if (membresiaId) {
+        console.log("Actualizando referencia de membresía en usuario:", membresiaId);
+        await fetch('/api/update-membership', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            operation: 'update-reference',
+            membresiaId: membresiaId
+          }),
+        });
+      }
+      
+      // Esperar un momento para que los cambios se propaguen
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Recargar datos del usuario
       await cargarDatosUsuario();
@@ -520,6 +603,11 @@ export default function PerfilUsuario() {
         texto: "Membresía gratuita asignada correctamente",
         tipo: "exito"
       });
+      
+      // Forzar recarga de la página para asegurar que se ven los cambios
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (err: any) {
       console.error("Error al asignar membresía gratuita:", err);
       setMensaje({
