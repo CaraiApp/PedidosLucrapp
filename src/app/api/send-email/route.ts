@@ -72,15 +72,32 @@ async function procesarEnvioCorreo(destinatario: string, asunto: string, conteni
 
 export async function POST(request: Request) {
   try {
+    // Obtener el token tanto del body como de la cabecera Authorization
+    let token;
+    
+    // Verificar si hay token en la cabecera Authorization
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7); // Quitar 'Bearer ' para obtener el token
+      console.log("Token obtenido de cabecera Authorization, longitud:", token.length);
+    }
+    
     // Obtener y validar el body de la petición
     const body = await request.json();
-    const { destinatario, asunto, contenido, token, isSuperAdmin, remitente } = body;
+    const { destinatario, asunto, contenido, token: bodyToken, isSuperAdmin, remitente } = body;
+    
+    // Si no hay token en la cabecera, usar el del body
+    if (!token && bodyToken) {
+      token = bodyToken;
+      console.log("Token obtenido del body, longitud:", token.length);
+    }
     
     console.log("Solicitud de envío de correo recibida:", { 
       destinatario, 
       asunto: asunto?.substring(0, 30) + "...", 
       isSuperAdmin,
-      remitente
+      remitente,
+      tokenPresente: !!token
     });
     
     if (!destinatario || !asunto || !contenido) {
@@ -92,21 +109,42 @@ export async function POST(request: Request) {
     
     // Verificar autenticación
     if (!token) {
+      console.error("No se proporcionó token de autenticación");
       return NextResponse.json(
-        { error: 'No autorizado' },
+        { error: 'No autorizado - Token no proporcionado' },
         { status: 401 }
       );
     }
     
     // Verificar que el token es válido
+    console.log("Verificando token de autenticación...");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
-    if (authError || !user) {
+    if (authError) {
+      console.error("Error de autenticación:", authError);
       return NextResponse.json(
-        { error: 'No autorizado', details: authError?.message },
+        { 
+          error: 'Token inválido o expirado', 
+          details: authError.message,
+          code: authError.code || 'AUTH_ERROR'
+        },
         { status: 401 }
       );
     }
+    
+    if (!user) {
+      console.error("No se encontró información de usuario con el token proporcionado");
+      return NextResponse.json(
+        { 
+          error: 'No se pudo obtener información de usuario', 
+          details: 'El token parece válido pero no contiene información de usuario'
+        },
+        { status: 401 }
+      );
+    }
+    
+    // Si llegamos aquí, el token es válido
+    console.log("Token válido, usuario autenticado:", user.email);
     
     // Verificar que el usuario tiene permisos de administrador
     try {

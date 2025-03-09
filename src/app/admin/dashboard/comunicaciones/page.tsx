@@ -200,10 +200,41 @@ export default function Comunicaciones() {
     
     try {
       // Obtener la sesión actual para obtener el token
+      console.log("Obteniendo sesión para enviar correos...");
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (sessionError || !session) {
-        throw new Error("No se pudo obtener la sesión");
+      if (sessionError) {
+        console.error("Error al obtener sesión:", sessionError);
+        throw new Error(`Error al obtener sesión: ${sessionError.message || "Error desconocido"}`);
+      }
+      
+      if (!session) {
+        console.error("No hay sesión activa");
+        throw new Error("No hay sesión activa. Por favor, inicia sesión nuevamente.");
+      }
+      
+      if (!session.access_token) {
+        console.error("La sesión no contiene token de acceso");
+        throw new Error("La sesión no contiene un token de acceso válido");
+      }
+      
+      // Actualizar la sesión antes de usarla para asegurar que tengamos un token fresco
+      try {
+        console.log("Actualizando sesión para obtener token fresco...");
+        await supabase.auth.refreshSession();
+        // Obtenemos la sesión nuevamente después de refrescarla
+        const { data: refreshedData } = await supabase.auth.getSession();
+        
+        if (refreshedData.session) {
+          console.log("Sesión actualizada correctamente");
+          // Usamos la sesión actualizada
+          session.access_token = refreshedData.session.access_token;
+        } else {
+          console.warn("No se pudo actualizar la sesión, usando la existente");
+        }
+      } catch (refreshError) {
+        console.warn("Error al refrescar la sesión:", refreshError);
+        // Continuamos con la sesión original
       }
       
       // Para asegurarnos de que funciona correctamente para superadmins por email
@@ -248,33 +279,60 @@ export default function Comunicaciones() {
       const resultados = await Promise.all(
         usuariosParaEnviar.map(async (usuario) => {
           try {
-            console.log("Enviando correo a:", usuario.email);
+            console.log("Enviando correo a:", usuario.email, "con token de longitud:", session.access_token?.length || 0);
+            
+            // Agregamos más información para depuración
+            const requestData = {
+              destinatario: usuario.email,
+              asunto: asunto,
+              contenido: contenidoHtml,
+              token: session.access_token,
+              // Incluimos la información de superadmin en la solicitud
+              isSuperAdmin: superAdminEmails.includes(session.user.email || ''),
+              remitente: session.user.email
+            };
+            
+            console.log("Enviando solicitud con remitente:", requestData.remitente);
+            
             const response = await fetch('/api/send-email', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}` // Añadimos el token también en cabecera
               },
-              body: JSON.stringify({
-                destinatario: usuario.email,
-                asunto: asunto,
-                contenido: contenidoHtml,
-                token: session.access_token,
-                // Incluimos la información de superadmin en la solicitud
-                isSuperAdmin: superAdminEmails.includes(session.user.email || ''),
-                remitente: session.user.email
-              }),
+              body: JSON.stringify(requestData),
             });
             
-            const result = await response.json();
+            let result;
+            try {
+              result = await response.json();
+            } catch (jsonError) {
+              console.error("Error al parsear respuesta JSON:", jsonError);
+              result = { error: "Error al parsear respuesta" };
+            }
             
             if (!response.ok) {
-              console.error("Error al enviar correo a", usuario.email, ":", result);
+              console.error(`Error ${response.status} al enviar correo a ${usuario.email}:`, result);
+              
+              // Manejar específicamente errores de autenticación
+              if (response.status === 401) {
+                return {
+                  usuario: usuario.email,
+                  exito: false,
+                  error: "Error de autenticación. El token ha expirado o no es válido",
+                  detalles: result.details || "Intenta recargar la página para obtener un nuevo token",
+                  resultado: result,
+                  status: response.status
+                };
+              }
+              
               return {
                 usuario: usuario.email,
                 exito: false,
-                error: result.error || "Error desconocido",
+                error: result.error || `Error ${response.status}`,
                 detalles: result.details || "",
-                resultado: result
+                resultado: result,
+                status: response.status
               };
             }
             
@@ -299,18 +357,46 @@ export default function Comunicaciones() {
       const exitosos = resultados.filter(r => r.exito).length;
       const fallidos = resultados.length - exitosos;
       
+      // Analizar los errores
+      const errores401 = resultados.filter(r => !r.exito && r.status === 401).length;
+      
       // Si hay algún error común, mostrarlo
       const errorComun = resultados.find(r => !r.exito && r.error)?.error;
       
-      if (fallidos > 0 && errorComun) {
-        setMensaje({
-          texto: `Error al enviar correos: ${errorComun}. Exitosos: ${exitosos}, Fallidos: ${fallidos}`,
-          tipo: "error"
-        });
+      if (fallidos > 0) {
+        if (errores401 > 0) {
+          // Error de autenticación
+          setMensaje({
+            texto: `Error de autenticación al enviar correos. Intenta recargar la página. Exitosos: ${exitosos}, Fallidos: ${fallidos}`,
+            tipo: "error"
+          });
+          
+          // Recargar la sesión para los próximos intentos
+          try {
+            console.log("Intentando actualizar la sesión tras error de autenticación...");
+            await supabase.auth.refreshSession();
+            console.log("Sesión actualizada exitosamente después del error");
+          } catch (err) {
+            console.error("No se pudo actualizar la sesión:", err);
+          }
+        } else if (errorComun) {
+          // Otro error común
+          setMensaje({
+            texto: `Error al enviar correos: ${errorComun}. Exitosos: ${exitosos}, Fallidos: ${fallidos}`,
+            tipo: "error"
+          });
+        } else {
+          // Errores diversos
+          setMensaje({
+            texto: `Correos enviados: ${exitosos} exitosos, ${fallidos} fallidos de un total de ${resultados.length}`,
+            tipo: "advertencia"
+          });
+        }
       } else {
+        // Todo correcto
         setMensaje({
-          texto: `Correos enviados: ${exitosos} exitosos, ${fallidos} fallidos de un total de ${resultados.length}`,
-          tipo: fallidos > 0 ? "advertencia" : "success"
+          texto: `Correos enviados: ${exitosos} exitosos de un total de ${resultados.length}`,
+          tipo: "success"
         });
       }
       
