@@ -16,6 +16,7 @@ import DashboardStats from "@/app/dashboard/components/DashboardStats";
 import RecentLists from "@/app/dashboard/components/RecentLists";
 import { supabase } from "@/lib/supabase";
 import { ListaCompra } from "@/types";
+import { SUPER_ADMIN_EMAIL, createAdminToken } from "@/lib/admin/auth";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -149,6 +150,27 @@ export default function Dashboard() {
     }
   };
 
+  // Verificar si el usuario es superadmin
+  const isSuperAdmin = user && user.email === SUPER_ADMIN_EMAIL;
+
+  // Función para acceder al panel de administración
+  const handleAdminAccess = () => {
+    try {
+      // Crear token seguro para admin
+      const adminToken = createAdminToken(SUPER_ADMIN_EMAIL);
+      
+      // Establecer cookies seguras
+      document.cookie = `adminToken=${adminToken}; path=/admin; max-age=14400; secure; samesite=strict`;
+      document.cookie = `adminSuperAccess=true; path=/admin; max-age=3600; secure; samesite=strict`;
+      
+      // Redireccionar al panel de admin
+      router.push('/admin/dashboard');
+    } catch (error) {
+      console.error('Error al acceder al panel de admin:', error);
+      alert('Error al acceder al panel de administración');
+    }
+  };
+
   if (authLoading || statsLoading || loading) {
     return (
       <AppLayout>
@@ -162,9 +184,25 @@ export default function Dashboard() {
       <div className="py-4 sm:py-10">
         <header>
           <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
-            <h1 className="text-2xl sm:text-3xl font-bold leading-tight text-gray-900">
-              Dashboard
-            </h1>
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl sm:text-3xl font-bold leading-tight text-gray-900">
+                Dashboard
+              </h1>
+              
+              {/* Botón de acceso admin exclusivo para superadmin */}
+              {isSuperAdmin && (
+                <button
+                  onClick={handleAdminAccess}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Panel Admin
+                </button>
+              )}
+            </div>
           </div>
         </header>
         <main>
