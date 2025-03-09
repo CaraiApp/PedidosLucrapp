@@ -75,11 +75,21 @@ export async function enviarCorreoDesdeServidor(
     // Inicializar SendGrid si aún no está inicializado
     if (!sendgridInitialized) {
       if (!process.env.SENDGRID_API_KEY) {
-        throw new Error("SENDGRID_API_KEY no está configurada en las variables de entorno");
+        console.error("ERROR CRÍTICO: SENDGRID_API_KEY no está configurada en las variables de entorno");
+        throw new Error("SENDGRID_API_KEY no está configurada en las variables de entorno. Contacta con el administrador del sistema.");
       }
+      
+      // Verificar que la API Key no está vacía
+      if (process.env.SENDGRID_API_KEY.trim() === '') {
+        console.error("ERROR CRÍTICO: SENDGRID_API_KEY está vacía");
+        throw new Error("La API Key de SendGrid está vacía. Contacta con el administrador del sistema.");
+      }
+      
       console.log("Inicializando SendGrid con API Key");
       sgMail.setApiKey(process.env.SENDGRID_API_KEY);
       sendgridInitialized = true;
+      
+      console.log("SendGrid inicializado correctamente");
     }
 
     // Comprobar si debemos resetear el contador de límite
@@ -101,6 +111,18 @@ export async function enviarCorreoDesdeServidor(
 
     const emailRemitente = process.env.EMAIL_REMITENTE || "noreply@lucrapp.com";
     const nombreRemitente = process.env.NOMBRE_REMITENTE || "Lucrapp";
+    
+    // Verificar que el email remitente está configurado
+    if (!emailRemitente || emailRemitente.trim() === '') {
+      console.error("ERROR: EMAIL_REMITENTE no está configurado o está vacío");
+      throw new Error("La dirección de correo del remitente no está configurada. Contacta con el administrador del sistema.");
+    }
+    
+    // Verificar que el email remitente tiene un formato válido
+    if (!emailRemitente.includes('@') || !emailRemitente.includes('.')) {
+      console.error("ERROR: EMAIL_REMITENTE tiene un formato inválido:", emailRemitente);
+      throw new Error("La dirección de correo del remitente tiene un formato inválido. Contacta con el administrador del sistema.");
+    }
     
     console.log(`Configurando correo desde: ${emailRemitente} (${nombreRemitente})`);
     console.log(`Para enviar a: ${destinatario}`);
@@ -139,27 +161,55 @@ export async function enviarCorreoDesdeServidor(
     // Extraer información detallada del error de SendGrid
     let errorMsg = error.message || "Error desconocido";
     let errorDetails = null;
+    let errorCode = null;
     
     if (error.response && error.response.body) {
       try {
         errorDetails = error.response.body;
+        errorCode = error.code || error.response.statusCode;
         console.error("Detalles del error de SendGrid:", JSON.stringify(errorDetails));
+        console.error("Código de error:", errorCode);
+        
+        // Si hay errores en el cuerpo de la respuesta
+        if (errorDetails.errors && Array.isArray(errorDetails.errors)) {
+          errorDetails.errors.forEach((err: any) => {
+            console.error(`Error específico: ${err.message} (${err.field || 'unknown field'})`);
+          });
+        }
       } catch (e) {
-        console.error("No se pudieron parsear los detalles del error");
+        console.error("No se pudieron parsear los detalles del error:", e);
       }
     }
     
-    // Manejo de errores específicos
+    // Manejo de errores específicos con mensajes amigables
     if (errorMsg.includes("does not exist or is not verified")) {
       errorMsg = "El remitente no está verificado en SendGrid. Por favor, verifica tu dirección de correo en la plataforma de SendGrid.";
     } else if (errorMsg.includes("rate limit") || errorMsg.includes("exceeded") || errorMsg.includes("too many requests")) {
       errorMsg = "Límite de envío de correos alcanzado. Por favor, intenta más tarde.";
+    } else if (errorMsg.includes("invalid API key")) {
+      errorMsg = "La API key de SendGrid es inválida. Contacta con el administrador del sistema.";
+    } else if (errorMsg.includes("forbidden") || errorMsg.includes("403")) {
+      errorMsg = "Acceso denegado por SendGrid. Verifica que tu cuenta está activa y que tienes permisos para enviar correos.";
+    } else if (errorMsg.includes("unauthorized") || errorMsg.includes("401")) {
+      errorMsg = "No autorizado por SendGrid. Verifica la API key y los permisos de la cuenta.";
+    } else if (errorMsg.includes("authentication")) {
+      errorMsg = "Error de autenticación con SendGrid. Verifica la configuración de tu cuenta.";
     }
+    
+    // Imprimir una versión más detallada del error para depuración
+    console.error(`
+      ERROR DETALLADO:
+      - Mensaje: ${errorMsg}
+      - Código: ${errorCode || 'N/A'}
+      - Detalles: ${JSON.stringify(errorDetails || {})}
+      - Timestamp: ${new Date().toISOString()}
+    `);
     
     return { 
       success: false, 
       error: errorMsg,
       details: errorDetails,
+      errorCode: errorCode,
       timestamp: new Date().toISOString()
     };
   }

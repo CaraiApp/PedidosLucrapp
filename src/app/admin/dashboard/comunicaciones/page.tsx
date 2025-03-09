@@ -155,10 +155,32 @@ export default function Comunicaciones() {
         throw new Error("No se pudo obtener la sesión");
       }
       
+      console.log("Verificando rol de usuario...");
+      // Verificar que el usuario actual tiene rol de admin antes de continuar
+      const { data: userData, error: userError } = await supabase
+        .from('usuarios')
+        .select('rol, id')
+        .eq('id', session.user.id)
+        .single();
+        
+      if (userError) {
+        console.error("Error al verificar rol de usuario:", userError);
+        throw new Error("Error al verificar permisos de administrador");
+      }
+      
+      if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
+        console.error("Usuario no tiene permisos de administrador:", userData?.rol);
+        throw new Error("No tienes permisos para enviar correos. Se requiere rol de administrador.");
+      }
+      
+      console.log("Usuario tiene permisos de administrador:", userData.rol);
+      
       // Obtener los usuarios seleccionados
       const usuariosParaEnviar = usuarios.filter(u => 
         usuariosSeleccionados.includes(u.id) && u.email
       );
+      
+      console.log("Enviando correos a", usuariosParaEnviar.length, "usuarios...");
       
       // Crear el contenido HTML con estilos
       const contenidoHtml = `
@@ -174,25 +196,48 @@ export default function Comunicaciones() {
       // Enviar a cada usuario (en paralelo)
       const resultados = await Promise.all(
         usuariosParaEnviar.map(async (usuario) => {
-          const response = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              destinatario: usuario.email,
-              asunto: asunto,
-              contenido: contenidoHtml,
-              token: session.access_token,
-            }),
-          });
-          
-          const result = await response.json();
-          return {
-            usuario: usuario.email,
-            exito: response.ok,
-            resultado: result
-          };
+          try {
+            console.log("Enviando correo a:", usuario.email);
+            const response = await fetch('/api/send-email', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                destinatario: usuario.email,
+                asunto: asunto,
+                contenido: contenidoHtml,
+                token: session.access_token,
+              }),
+            });
+            
+            const result = await response.json();
+            
+            if (!response.ok) {
+              console.error("Error al enviar correo a", usuario.email, ":", result);
+              return {
+                usuario: usuario.email,
+                exito: false,
+                error: result.error || "Error desconocido",
+                detalles: result.details || "",
+                resultado: result
+              };
+            }
+            
+            return {
+              usuario: usuario.email,
+              exito: true,
+              resultado: result
+            };
+          } catch (error: any) {
+            console.error("Error en petición para", usuario.email, ":", error);
+            return {
+              usuario: usuario.email,
+              exito: false,
+              error: error.message || "Error en la petición",
+              resultado: null
+            };
+          }
         })
       );
       
@@ -200,10 +245,20 @@ export default function Comunicaciones() {
       const exitosos = resultados.filter(r => r.exito).length;
       const fallidos = resultados.length - exitosos;
       
-      setMensaje({
-        texto: `Correos enviados: ${exitosos} exitosos, ${fallidos} fallidos de un total de ${resultados.length}`,
-        tipo: fallidos > 0 ? "advertencia" : "success"
-      });
+      // Si hay algún error común, mostrarlo
+      const errorComun = resultados.find(r => !r.exito && r.error)?.error;
+      
+      if (fallidos > 0 && errorComun) {
+        setMensaje({
+          texto: `Error al enviar correos: ${errorComun}. Exitosos: ${exitosos}, Fallidos: ${fallidos}`,
+          tipo: "error"
+        });
+      } else {
+        setMensaje({
+          texto: `Correos enviados: ${exitosos} exitosos, ${fallidos} fallidos de un total de ${resultados.length}`,
+          tipo: fallidos > 0 ? "advertencia" : "success"
+        });
+      }
       
       console.log("Resultados de envío:", resultados);
       

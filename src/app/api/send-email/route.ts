@@ -40,9 +40,18 @@ export async function POST(request: Request) {
       .eq('id', user.id)
       .single();
       
-    if (userError || !userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
+    if (userError) {
+      console.error('Error al verificar roles de usuario:', userError);
       return NextResponse.json(
-        { error: 'No tienes permisos para enviar correos' },
+        { error: 'Error al verificar permisos', details: userError.message },
+        { status: 500 }
+      );
+    }
+      
+    if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
+      console.log('Acceso denegado. Rol de usuario:', userData?.rol);
+      return NextResponse.json(
+        { error: 'No tienes permisos para enviar correos. Se requiere rol de admin o superadmin.' },
         { status: 403 }
       );
     }
