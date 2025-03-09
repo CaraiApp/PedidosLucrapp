@@ -30,25 +30,57 @@ export default function Comunicaciones() {
     if (!permisosVerificados) {
       const verificarAcceso = async () => {
         try {
-          // Verificar si es admin o superadmin
-          if (isAuthenticated || isAdmin() || isSuperAdmin()) {
-            // Tiene permisos, cargar datos
-            await cargarUsuarios();
+          // Verificar si es admin o superadmin en Supabase
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            throw new Error("Error al obtener sesión");
+          }
+          
+          if (!session || !session.user) {
+            setMensaje({
+              texto: "No has iniciado sesión",
+              tipo: "error"
+            });
+            setLoading(false);
             setPermisosVerificados(true);
             return;
           }
           
-          // Sin permisos
-          setMensaje({
-            texto: "No tienes permisos para acceder a esta página",
-            tipo: "error"
-          });
-          setLoading(false);
+          // Verificar explícitamente el rol del usuario en la base de datos
+          const { data: userData, error: userError } = await supabase
+            .from('usuarios')
+            .select('rol, id, email')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (userError) {
+            console.error("Error al verificar rol:", userError);
+            throw new Error("Error al verificar permisos");
+          }
+          
+          console.log("Rol del usuario:", userData?.rol);
+          
+          // Verificar que el usuario tiene rol de admin o superadmin
+          if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
+            setMensaje({
+              texto: `No tienes permisos de administrador. Tu rol actual es: ${userData?.rol || 'sin rol'}`,
+              tipo: "error"
+            });
+            setLoading(false);
+            setPermisosVerificados(true);
+            return;
+          }
+          
+          console.log("Usuario verificado como administrador:", userData.email);
+          
+          // Marcar al usuario como verificado y cargar datos
+          await cargarUsuarios();
           setPermisosVerificados(true);
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error al verificar acceso:", error);
           setMensaje({
-            texto: "Error al verificar permisos",
+            texto: `Error al verificar permisos: ${error.message || "Error desconocido"}`,
             tipo: "error"
           });
           setLoading(false);
@@ -58,7 +90,7 @@ export default function Comunicaciones() {
       
       verificarAcceso();
     }
-  }, [permisosVerificados, isAuthenticated, isAdmin, isSuperAdmin]);
+  }, [permisosVerificados]);
   
   // Cargar datos de usuarios
   const cargarUsuarios = async () => {
@@ -155,25 +187,11 @@ export default function Comunicaciones() {
         throw new Error("No se pudo obtener la sesión");
       }
       
-      console.log("Verificando rol de usuario...");
-      // Verificar que el usuario actual tiene rol de admin antes de continuar
-      const { data: userData, error: userError } = await supabase
-        .from('usuarios')
-        .select('rol, id')
-        .eq('id', session.user.id)
-        .single();
-        
-      if (userError) {
-        console.error("Error al verificar rol de usuario:", userError);
-        throw new Error("Error al verificar permisos de administrador");
-      }
+      // Ya hemos verificado los permisos de administrador en useEffect, 
+      // por lo que no es necesario volver a verificar aquí.
+      // Esto evita posibles inconsistencias entre diferentes verificaciones
       
-      if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
-        console.error("Usuario no tiene permisos de administrador:", userData?.rol);
-        throw new Error("No tienes permisos para enviar correos. Se requiere rol de administrador.");
-      }
-      
-      console.log("Usuario tiene permisos de administrador:", userData.rol);
+      console.log("Enviando correos como administrador verificado");
       
       // Obtener los usuarios seleccionados
       const usuariosParaEnviar = usuarios.filter(u => 

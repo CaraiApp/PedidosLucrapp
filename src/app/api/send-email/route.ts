@@ -33,26 +33,49 @@ export async function POST(request: Request) {
       );
     }
     
-    // Verificar que el usuario es admin (opcional, puedes comentar esto para permitir a cualquier usuario enviar correos)
-    const { data: userData, error: userError } = await supabase
-      .from('usuarios')
-      .select('rol, id')
-      .eq('id', user.id)
-      .single();
+    // Verificar que el usuario tiene permisos de administrador
+    try {
+      // Verificar primero si es un superadmin (email específico)
+      const superAdminEmails = ['luisocro@gmail.com'];
       
-    if (userError) {
-      console.error('Error al verificar roles de usuario:', userError);
+      if (user.email && superAdminEmails.includes(user.email)) {
+        console.log('Usuario superadmin detectado por email:', user.email);
+        // No es necesario verificar más, el superadmin tiene todos los permisos
+      } else {
+        // Verificar rol en la tabla de usuarios
+        const { data: userData, error: userError } = await supabase
+          .from('usuarios')
+          .select('rol, id, email')
+          .eq('id', user.id)
+          .single();
+          
+        if (userError) {
+          console.error('Error al verificar roles de usuario:', userError);
+          return NextResponse.json(
+            { error: 'Error al verificar permisos', details: userError.message },
+            { status: 500 }
+          );
+        }
+          
+        // Verificación estricta de rol
+        const rolActual = userData?.rol || 'sin rol';
+        console.log('Verificación de rol de usuario:', user.id, rolActual);
+        
+        if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
+          console.log('Acceso denegado. Rol de usuario:', rolActual);
+          return NextResponse.json(
+            { error: `No tienes permisos para enviar correos. Se requiere rol de admin o superadmin. Tu rol actual es: ${rolActual}` },
+            { status: 403 }
+          );
+        }
+        
+        console.log('Usuario admin verificado:', userData.email);
+      }
+    } catch (validationError: any) {
+      console.error('Error al validar permisos:', validationError);
       return NextResponse.json(
-        { error: 'Error al verificar permisos', details: userError.message },
+        { error: 'Error al validar permisos de administrador', details: validationError.message },
         { status: 500 }
-      );
-    }
-      
-    if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
-      console.log('Acceso denegado. Rol de usuario:', userData?.rol);
-      return NextResponse.json(
-        { error: 'No tienes permisos para enviar correos. Se requiere rol de admin o superadmin.' },
-        { status: 403 }
       );
     }
     
