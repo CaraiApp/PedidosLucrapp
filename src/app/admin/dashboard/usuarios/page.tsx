@@ -12,78 +12,73 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
-// Componente para mostrar información detallada de membresía
+// Componente básico para mostrar información de membresía
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
+  const [planID, setPlanID] = useState<string | null>(null);
   const [nombrePlan, setNombrePlan] = useState<string | null>(null);
   const [cargando, setCargando] = useState<boolean>(true);
-  const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
-    const cargarDatosMembresiaActiva = async () => {
-      try {
-        setCargando(true);
-        setError(false);
-        
-        console.log(`Consultando membresía activa para usuario: ${usuarioId}`);
-        
-        // Consulta directa a la tabla membresias_usuarios filtrando por usuario_id y estado='activa'
-        const { data, error } = await supabase
-          .from('membresias_usuarios')
-          .select(`
-            id,
-            usuario_id,
-            tipo_membresia_id,
-            estado,
-            tipo_membresia:membresia_tipos (
-              id,
-              nombre
-            )
-          `)
-          .eq('usuario_id', usuarioId)
-          .eq('estado', 'activa')
-          .order('fecha_inicio', { ascending: false });
-        
-        if (error) {
-          console.error("Error al cargar membresía:", error);
-          setError(true);
-          return;
-        }
-        
-        console.log(`Resultado de consulta para usuario ${usuarioId}:`, data);
-        
-        if (data && data.length > 0 && data[0].tipo_membresia) {
-          // Encontramos al menos una membresía activa
-          const membresia = data[0];
-          console.log(`Membresía activa encontrada: ${membresia.id}, Tipo: ${membresia.tipo_membresia.nombre}`);
-          setNombrePlan(membresia.tipo_membresia.nombre);
-        } else {
-          console.log(`No se encontró membresía activa para el usuario ${usuarioId}`);
-          setNombrePlan(null);
-        }
-      } catch (err) {
-        console.error(`Error al cargar datos de membresía para ${usuarioId}:`, err);
-        setError(true);
-      } finally {
+    const cargarMembresia = async () => {
+      setCargando(true);
+      
+      // CONSULTA SIMPLE: Obtener todas las membresías ACTIVAS del usuario
+      const { data, error } = await supabase
+        .from('membresias_usuarios')
+        .select('tipo_membresia_id')
+        .eq('usuario_id', usuarioId)
+        .eq('estado', 'activa')
+        .limit(1);
+      
+      if (error) {
+        console.error("Error básico:", error);
         setCargando(false);
+        return;
       }
+      
+      // Si no tiene membresía activa
+      if (!data || data.length === 0) {
+        setCargando(false);
+        return;
+      }
+      
+      // Guardar el ID del tipo de membresía
+      const tipoMembresiaId = data[0].tipo_membresia_id;
+      setPlanID(tipoMembresiaId);
+      
+      // Consultar el nombre del tipo de membresía
+      const { data: tipoData, error: tipoError } = await supabase
+        .from('membresia_tipos')
+        .select('nombre')
+        .eq('id', tipoMembresiaId)
+        .single();
+      
+      if (tipoError) {
+        console.error("Error al obtener tipo:", tipoError);
+        setCargando(false);
+        return;
+      }
+      
+      // Guardar el nombre del plan
+      if (tipoData) {
+        setNombrePlan(tipoData.nombre);
+      }
+      
+      setCargando(false);
     };
     
-    cargarDatosMembresiaActiva();
+    cargarMembresia();
   }, [usuarioId]);
   
   if (cargando) {
-    return <span className="text-xs">Cargando...</span>;
+    return <span>Cargando...</span>;
   }
   
-  if (error) {
-    return <span className="text-xs text-red-500">Error al cargar</span>;
+  if (!planID) {
+    return <span>Sin membresía</span>;
   }
   
-  if (!nombrePlan) {
-    return <span className="text-xs text-gray-500">Sin membresía activa</span>;
-  }
-  
-  return <span>{nombrePlan}</span>;
+  return <span>{nombrePlan || planID}</span>;
 };
 
 export default function GestionUsuarios() {
@@ -93,7 +88,6 @@ export default function GestionUsuarios() {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
   const [filtro, setFiltro] = useState("");
-  const [filtroMembresia, setFiltroMembresia] = useState("todos"); // "todos", "con_membresia", "sin_membresia"
   const [tiposMembresia, setTiposMembresia] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -200,98 +194,29 @@ export default function GestionUsuarios() {
       
       console.log("Test de conexión exitoso, procediendo a cargar usuarios");
       
-      // Consulta simple para obtener TODOS los usuarios primero
-      console.log("Consultando todos los usuarios...");
-      const { data: todosUsuarios, error: errorTodos } = await supabase
+      // SIMPLIFICADO: Solo consultamos los usuarios, el componente MembresiaInfo se encargará de mostrar la membresía
+      const { data, error } = await supabase
         .from("usuarios")
         .select("*")
         .order("created_at", { ascending: false });
         
-      if (errorTodos) {
-        console.error("Error al cargar usuarios:", errorTodos);
-        throw new Error(errorTodos.message || "Error al cargar datos");
+      if (error) {
+        console.error("Error al cargar usuarios:", error);
+        throw new Error(error.message || "Error al cargar datos");
       }
       
-      console.log(`Cargados ${todosUsuarios?.length || 0} usuarios básicos`);
-      
-      // Ahora consultamos las membresías activas
-      console.log("Consultando membresías activas...");
-      const { data: membresiasActivas, error: errorMembresias } = await supabase
-        .from("membresias_usuarios")
-        .select(`
-          id,
-          usuario_id,
-          tipo_membresia_id,
-          tipo_membresia:membresia_tipos (
-            id, 
-            nombre
-          )
-        `)
-        .eq("estado", "activa");
-        
-      if (errorMembresias) {
-        console.error("Error al cargar membresías:", errorMembresias);
-        // Si falla, devolvemos los usuarios básicos sin info de membresía
-        setUsuarios(todosUsuarios || []);
-        return;
-      }
-      
-      console.log(`Cargadas ${membresiasActivas?.length || 0} membresías activas`);
-      
-      // Cargar todos los tipos de membresía para los filtros
-      const { data: tiposMembresiaData, error: tiposError } = await supabase
+      // Cargar tipos de membresía para los filtros
+      const { data: tiposMembresiaData } = await supabase
         .from("membresia_tipos")
         .select("id, nombre")
         .order("precio", { ascending: true });
         
-      if (!tiposError && tiposMembresiaData) {
-        console.log(`Cargados ${tiposMembresiaData.length} tipos de membresía`);
+      if (tiposMembresiaData) {
         setTiposMembresia(tiposMembresiaData);
-      } else {
-        console.error("Error al cargar tipos de membresía:", tiposError);
       }
       
-      // Creamos un mapa para acceso rápido a las membresías por ID de usuario
-      const membresiasPorUsuario = new Map();
-      membresiasActivas?.forEach(membresia => {
-        membresiasPorUsuario.set(membresia.usuario_id, membresia);
-      });
-      
-      // Procesamos los usuarios para añadir su información de membresía
-      const usuariosProcesados = todosUsuarios.map(usuario => {
-        const membresiaActiva = membresiasPorUsuario.get(usuario.id);
-        
-        if (membresiaActiva) {
-          // Si encontramos membresía activa, actualizamos la referencia si es necesario
-          if (usuario.membresia_activa_id !== membresiaActiva.id) {
-            console.log(`Actualizando referencia de membresía para usuario ${usuario.id}`);
-            // Intentar actualizar la referencia (asíncrono)
-            supabase
-              .from("usuarios")
-              .update({ membresia_activa_id: membresiaActiva.id })
-              .eq("id", usuario.id)
-              .then(() => console.log(`Referencia actualizada para ${usuario.id}`))
-              .catch(err => console.error(`Error al actualizar referencia: ${err}`));
-          }
-          
-          return {
-            ...usuario,
-            membresia_activa_id: membresiaActiva.id,
-            membresia_activa: membresiaActiva,
-            tiene_membresia_activa: true,
-            tipo_membresia_nombre: membresiaActiva.tipo_membresia?.nombre || "Plan activo"
-          };
-        }
-        
-        return {
-          ...usuario,
-          tiene_membresia_activa: false,
-          tipo_membresia_nombre: null
-        };
-      });
-      
-      console.log(`Procesados ${usuariosProcesados.length} usuarios con información completa`);
-      setUsuarios(usuariosProcesados || []);
+      // Simplemente asignamos los usuarios a la variable de estado
+      setUsuarios(data || []);
     } catch (err) {
       console.error("Error detallado al cargar usuarios:", err);
       setMensaje({
@@ -351,35 +276,17 @@ export default function GestionUsuarios() {
     });
   };
 
-  // Filtrar usuarios por texto y membresía
+  // Filtrar usuarios solo por texto (más simple)
   const usuariosFiltrados = usuarios.filter(
-    (usuario) => {
-      // Filtro de texto
-      const cumpleFiltroTexto = 
-        usuario.email.toLowerCase().includes(filtro.toLowerCase()) ||
-        usuario.username.toLowerCase().includes(filtro.toLowerCase()) ||
-        (usuario.nombre &&
-          usuario.nombre.toLowerCase().includes(filtro.toLowerCase())) ||
-        (usuario.apellidos &&
-          usuario.apellidos.toLowerCase().includes(filtro.toLowerCase())) ||
-        (usuario.empresa &&
-          usuario.empresa.toLowerCase().includes(filtro.toLowerCase()));
-      
-      // Filtro de membresía
-      let cumpleFiltroMembresia = true;
-      
-      if (filtroMembresia === "con_membresia") {
-        cumpleFiltroMembresia = usuario.tiene_membresia_activa === true;
-      } else if (filtroMembresia === "sin_membresia") {
-        cumpleFiltroMembresia = usuario.tiene_membresia_activa !== true;
-      } else if (filtroMembresia.startsWith("tipo_")) {
-        // Filtrar por tipo específico de membresía
-        const tipoId = filtroMembresia.replace("tipo_", "");
-        cumpleFiltroMembresia = usuario.membresia_activa?.tipo_membresia_id === tipoId;
-      }
-      
-      return cumpleFiltroTexto && cumpleFiltroMembresia;
-    }
+    (usuario) => 
+      usuario.email.toLowerCase().includes(filtro.toLowerCase()) ||
+      usuario.username.toLowerCase().includes(filtro.toLowerCase()) ||
+      (usuario.nombre &&
+        usuario.nombre.toLowerCase().includes(filtro.toLowerCase())) ||
+      (usuario.apellidos &&
+        usuario.apellidos.toLowerCase().includes(filtro.toLowerCase())) ||
+      (usuario.empresa &&
+        usuario.empresa.toLowerCase().includes(filtro.toLowerCase()))
   );
 
   // Paginación
@@ -400,9 +307,8 @@ export default function GestionUsuarios() {
 
       <Alert mensaje={mensaje} onClose={() => setMensaje(null)} />
 
-      {/* Buscador y filtros */}
-      <div className="mb-6 space-y-4">
-        {/* Buscador */}
+      {/* Buscador simplificado */}
+      <div className="mb-6">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg
@@ -432,76 +338,8 @@ export default function GestionUsuarios() {
           />
         </div>
         
-        {/* Filtros de membresía */}
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-sm font-medium text-gray-700">Filtrar por membresía:</span>
-          
-          {/* Botón "Todos" */}
-          <button
-            onClick={() => {
-              setFiltroMembresia("todos");
-              setCurrentPage(1);
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-              filtroMembresia === "todos" 
-                ? "bg-indigo-600 text-white" 
-                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-            }`}
-          >
-            Todos
-          </button>
-          
-          {/* Botón "Con membresía" */}
-          <button
-            onClick={() => {
-              setFiltroMembresia("con_membresia");
-              setCurrentPage(1);
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-              filtroMembresia === "con_membresia" 
-                ? "bg-green-600 text-white" 
-                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-            }`}
-          >
-            Con membresía
-          </button>
-          
-          {/* Botón "Sin membresía" */}
-          <button
-            onClick={() => {
-              setFiltroMembresia("sin_membresia");
-              setCurrentPage(1);
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-              filtroMembresia === "sin_membresia" 
-                ? "bg-red-600 text-white" 
-                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-            }`}
-          >
-            Sin membresía
-          </button>
-          
-          {/* Filtros por tipo de membresía */}
-          {tiposMembresia && tiposMembresia.length > 0 && tiposMembresia.map(tipo => (
-            <button
-              key={tipo.id}
-              onClick={() => {
-                setFiltroMembresia(`tipo_${tipo.id}`);
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                filtroMembresia === `tipo_${tipo.id}` 
-                  ? "bg-blue-600 text-white" 
-                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-              }`}
-            >
-              {tipo.nombre}
-            </button>
-          ))}
-        </div>
-        
         {/* Indicador de filtros activos */}
-        {(filtro || filtroMembresia !== "todos") && (
+        {filtro && (
           <div className="flex justify-between items-center pt-2">
             <div className="text-sm text-gray-600">
               Mostrando {usuariosFiltrados.length} de {usuarios.length} usuarios
@@ -512,11 +350,10 @@ export default function GestionUsuarios() {
               size="sm"
               onClick={() => {
                 setFiltro("");
-                setFiltroMembresia("todos");
                 setCurrentPage(1);
               }}
             >
-              Limpiar filtros
+              Limpiar filtro
             </Button>
           </div>
         )}
@@ -601,13 +438,9 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {/* Mostramos directamente el componente MembresiaInfo que consultará la tabla membresias_usuarios */}
-                        {/* Este componente se encarga de hacer la consulta específica y mostrar el resultado */}
-                        <div className="flex flex-col space-y-1">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                            <MembresiaInfo usuarioId={usuario.id} />
-                          </span>
-                        </div>
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          <MembresiaInfo usuarioId={usuario.id} />
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatearFecha(usuario.created_at)}
