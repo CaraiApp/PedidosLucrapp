@@ -391,6 +391,55 @@ export default function PerfilUsuario() {
     }
   };
 
+  // Reparar membresía
+  const [reparandoMembresia, setReparandoMembresia] = useState(false);
+  
+  const repararMembresia = async () => {
+    if (!usuario) return;
+    
+    setReparandoMembresia(true);
+    setMensaje(null);
+    
+    try {
+      console.log("Iniciando reparación de membresía para el usuario:", userId);
+      
+      const response = await fetch('/api/debug-membership/fix', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId
+        }),
+      });
+      
+      const result = await response.json();
+      console.log("Resultado de reparación:", result);
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Error al reparar membresía");
+      }
+      
+      setMensaje({
+        texto: "Membresía reparada correctamente. Recargando...",
+        tipo: "exito"
+      });
+      
+      // Forzar recarga de la página después de reparar
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err: any) {
+      console.error("Error al reparar membresía:", err);
+      setMensaje({
+        texto: `Error en reparación: ${err.message || 'Error desconocido'}`,
+        tipo: "error"
+      });
+    } finally {
+      setReparandoMembresia(false);
+    }
+  };
+
   // Asignar membresía
   const asignarMembresia = async () => {
     if (!membresiaSeleccionada || !usuario) {
@@ -760,6 +809,16 @@ export default function PerfilUsuario() {
                 >
                   Gestionar membresía
                 </Button>
+                <Button 
+                  onClick={repararMembresia}
+                  variant="danger"
+                  size="sm"
+                  className="w-full"
+                  isLoading={reparandoMembresia}
+                  disabled={reparandoMembresia}
+                >
+                  Reparar membresía
+                </Button>
               </div>
             </div>
           ) : (
@@ -778,6 +837,16 @@ export default function PerfilUsuario() {
                   className="w-full"
                 >
                   Asignar membresía gratuita
+                </Button>
+                <Button 
+                  onClick={repararMembresia}
+                  variant="danger"
+                  size="sm"
+                  className="w-full mt-4"
+                  isLoading={reparandoMembresia}
+                  disabled={reparandoMembresia}
+                >
+                  Reparar membresía
                 </Button>
               </div>
             </div>
