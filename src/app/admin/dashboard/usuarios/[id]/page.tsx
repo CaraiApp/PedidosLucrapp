@@ -360,6 +360,117 @@ export default function PerfilUsuario() {
     }
   };
 
+  // Estados para selección de membresía
+  const [tiposMembresias, setTiposMembresias] = useState<any[]>([]);
+  const [membresiaSeleccionada, setMembresiaSeleccionada] = useState<string>("");
+  const [duracion, setDuracion] = useState<number>(12); // 12 meses por defecto
+  const [mostrarModalMembresia, setMostrarModalMembresia] = useState(false);
+  const [asignandoMembresia, setAsignandoMembresia] = useState(false);
+
+  // Cargar tipos de membresías disponibles
+  const cargarTiposMembresias = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("membresia_tipos")
+        .select("*")
+        .order("precio", { ascending: true });
+        
+      if (error) {
+        console.error("Error al cargar tipos de membresías:", error);
+        return;
+      }
+      
+      setTiposMembresias(data || []);
+      
+      // Seleccionar la primera por defecto si no hay seleccionada
+      if (data && data.length > 0 && !membresiaSeleccionada) {
+        setMembresiaSeleccionada(data[0].id);
+      }
+    } catch (err) {
+      console.error("Error al cargar tipos de membresías:", err);
+    }
+  };
+
+  // Asignar membresía
+  const asignarMembresia = async () => {
+    if (!membresiaSeleccionada || !usuario) {
+      setMensaje({
+        texto: "Selecciona un tipo de membresía primero",
+        tipo: "error"
+      });
+      return;
+    }
+    
+    setAsignandoMembresia(true);
+    setMensaje(null);
+    
+    try {
+      // Primero desactivamos todas las membresías activas del usuario
+      await fetch('/api/update-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          operation: 'deactivate-all'
+        }),
+      });
+      
+      // Calcular fechas
+      const fechaInicio = new Date().toISOString();
+      const fechaFin = new Date();
+      fechaFin.setMonth(fechaFin.getMonth() + duracion);
+      
+      // Crear nueva membresía
+      const response = await fetch('/api/create-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          tipoMembresiaId: membresiaSeleccionada,
+          fechaInicio: fechaInicio,
+          fechaFin: fechaFin.toISOString(),
+          estado: 'activa'
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Error al crear membresía");
+      }
+      
+      // Recargar datos del usuario
+      await cargarDatosUsuario();
+      
+      setMensaje({
+        texto: "Membresía asignada correctamente",
+        tipo: "exito"
+      });
+      
+      // Cerrar modal
+      setMostrarModalMembresia(false);
+    } catch (err: any) {
+      console.error("Error al asignar membresía:", err);
+      setMensaje({
+        texto: `No se pudo asignar la membresía: ${err.message || ''}`,
+        tipo: "error"
+      });
+    } finally {
+      setAsignandoMembresia(false);
+    }
+  };
+
+  // Método para mostrar modal y cargar tipos de membresías
+  const mostrarModalAsignarMembresia = () => {
+    cargarTiposMembresias();
+    setMostrarModalMembresia(true);
+  };
+
+  // Asignar membresía gratuita
   const asignarMembresiaGratuita = async () => {
     try {
       setLoading(true);
@@ -544,7 +655,15 @@ export default function PerfilUsuario() {
                 </div>
               </div>
               
-              <div className="mt-6 pt-4 border-t border-gray-200">
+              <div className="mt-6 pt-4 border-t border-gray-200 space-y-2">
+                <Button 
+                  onClick={mostrarModalAsignarMembresia}
+                  variant="primary"
+                  size="sm"
+                  className="w-full"
+                >
+                  Cambiar membresía
+                </Button>
                 <Button 
                   href={`/admin/dashboard/membresias/gestionar/${userId}`}
                   variant="outline"
@@ -558,12 +677,21 @@ export default function PerfilUsuario() {
           ) : (
             <div className="text-center py-4">
               <p className="text-gray-500 mb-4">El usuario no tiene una membresía activa.</p>
-              <Button 
-                onClick={asignarMembresiaGratuita}
-                className="w-full"
-              >
-                Asignar membresía gratuita
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  onClick={mostrarModalAsignarMembresia}
+                  className="w-full"
+                >
+                  Asignar membresía
+                </Button>
+                <Button 
+                  onClick={asignarMembresiaGratuita}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Asignar membresía gratuita
+                </Button>
+              </div>
             </div>
           )}
         </Card>
@@ -707,6 +835,136 @@ export default function PerfilUsuario() {
                     disabled={enviandoEmail || !asunto || !contenido}
                   >
                     Enviar correo
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal para asignar membresía */}
+      {mostrarModalMembresia && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Asignar membresía a {usuario?.username || usuario?.email}
+                </h3>
+                <button 
+                  onClick={() => setMostrarModalMembresia(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="tipo_membresia" className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de membresía
+                  </label>
+                  <select
+                    id="tipo_membresia"
+                    className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={membresiaSeleccionada}
+                    onChange={(e) => setMembresiaSeleccionada(e.target.value)}
+                  >
+                    {tiposMembresias.map(tipo => (
+                      <option key={tipo.id} value={tipo.id}>
+                        {tipo.nombre} - {tipo.precio}€ / {tipo.duracion_meses} meses
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Detalles del plan seleccionado */}
+                {membresiaSeleccionada && (
+                  <div className="bg-gray-50 p-4 rounded-md">
+                    <h3 className="text-md font-medium text-gray-900 mb-2">Detalles del plan</h3>
+                    
+                    {tiposMembresias
+                      .filter(tipo => tipo.id === membresiaSeleccionada)
+                      .map(tipo => (
+                        <div key={tipo.id}>
+                          <p className="text-sm text-gray-600 mb-2">{tipo.descripcion}</p>
+                          <ul className="space-y-1 text-sm text-gray-600">
+                            <li>• Proveedores: {
+                              tipo.nombre === "Plan Gratuito" 
+                                ? "Hasta 5" 
+                                : (tipo.limite_proveedores ? tipo.limite_proveedores : 'Ilimitados')
+                            }</li>
+                            <li>• Artículos: {
+                              tipo.nombre === "Plan Gratuito" 
+                                ? "Hasta 20" 
+                                : (tipo.limite_articulos ? tipo.limite_articulos : 'Ilimitados')
+                            }</li>
+                            <li>• Listas: {
+                              tipo.nombre === "Plan Gratuito" 
+                                ? "Hasta 3" 
+                                : (tipo.limite_listas ? tipo.limite_listas : 'Ilimitadas')
+                            }</li>
+                            {tipo.tiene_ai && (
+                              <li className="text-green-600">• Incluye funciones de IA</li>
+                            )}
+                            {!tipo.tiene_ai && (
+                              <li className="text-amber-600">• Sin funciones de IA</li>
+                            )}
+                          </ul>
+                        </div>
+                      ))}
+                  </div>
+                )}
+                
+                {/* Duración personalizada */}
+                <div>
+                  <label htmlFor="duracion" className="block text-sm font-medium text-gray-700 mb-1">
+                    Duración (meses)
+                  </label>
+                  <input
+                    type="number"
+                    id="duracion"
+                    min="1"
+                    max="60"
+                    className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    value={duracion}
+                    onChange={(e) => setDuracion(parseInt(e.target.value) || 1)}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">La membresía se asignará por esta duración.</p>
+                </div>
+                
+                {/* Aviso importante */}
+                <div className="border-l-4 border-amber-400 bg-amber-50 p-4 rounded-r-md">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-amber-700">
+                        Esto asignará directamente la membresía seleccionada al usuario, sin pasar por el proceso de pago.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setMostrarModalMembresia(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={asignarMembresia}
+                    isLoading={asignandoMembresia}
+                    disabled={asignandoMembresia || !membresiaSeleccionada}
+                  >
+                    Asignar membresía
                   </Button>
                 </div>
               </div>

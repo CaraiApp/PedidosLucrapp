@@ -12,6 +12,57 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
+// Componente para mostrar información detallada de membresía
+const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
+  const [nombrePlan, setNombrePlan] = useState<string>('Plan activo');
+  const [cargando, setCargando] = useState<boolean>(true);
+
+  useEffect(() => {
+    const cargarDatosMembresiaActiva = async () => {
+      try {
+        setCargando(true);
+        
+        // Obtener la membresía activa del usuario
+        const { data, error } = await supabase
+          .from('membresias_usuarios')
+          .select(`
+            id,
+            tipo_membresia:membresia_tipos (
+              id,
+              nombre
+            )
+          `)
+          .eq('usuario_id', usuarioId)
+          .eq('estado', 'activa')
+          .order('fecha_inicio', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (error) {
+          console.error("Error al cargar membresía:", error);
+          return;
+        }
+        
+        if (data && data.tipo_membresia) {
+          setNombrePlan(data.tipo_membresia.nombre);
+        }
+      } catch (err) {
+        console.error("Error:", err);
+      } finally {
+        setCargando(false);
+      }
+    };
+    
+    cargarDatosMembresiaActiva();
+  }, [usuarioId]);
+  
+  if (cargando) {
+    return <span className="text-xs">Cargando...</span>;
+  }
+  
+  return <span>{nombrePlan}</span>;
+};
+
 export default function GestionUsuarios() {
   const { isAdmin, isSuperAdmin, user } = useAuth();
   const { isAuthenticated } = useAdminAuth();
@@ -350,13 +401,10 @@ export default function GestionUsuarios() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {usuario.membresia_activa_id ? (
-                          <div>
+                          <div className="flex flex-col space-y-1">
                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              Plan activo
+                              <MembresiaInfo usuarioId={usuario.id} />
                             </span>
-                            <div className="text-xs text-gray-500 mt-1">
-                              ID: {usuario.membresia_activa_id.substring(0, 8)}...
-                            </div>
                           </div>
                         ) : (
                           <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
