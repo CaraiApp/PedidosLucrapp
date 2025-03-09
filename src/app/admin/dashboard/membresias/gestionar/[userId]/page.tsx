@@ -29,13 +29,15 @@ export default function GestionarMembresia() {
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
   const [permisosVerificados, setPermisosVerificados] = useState(false);
 
-  // Cargar datos del usuario
+  // Cargar datos del usuario - Versión robusta y optimizada
   const cargarDatosUsuario = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("Iniciando carga de datos, userId:", userId);
+      console.log("===== INICIANDO CARGA DE DATOS EN GESTIÓN DE MEMBRESÍAS =====");
+      console.log("ID de usuario:", userId);
       
-      // 1. Primero cargamos los datos básicos del usuario
+      // PASO 1: Primero cargamos datos básicos del usuario
+      console.log("Cargando datos básicos del usuario...");
       const { data: userData, error: userError } = await supabase
         .from("usuarios")
         .select("*")
@@ -47,37 +49,130 @@ export default function GestionarMembresia() {
         throw userError;
       }
       
-      console.log("Datos básicos del usuario cargados");
+      console.log("Datos básicos del usuario cargados correctamente");
       
-      // 2. Si el usuario tiene una membresía activa, cargamos esos datos en una consulta separada
-      let membresia = null;
+      // PASO 2: Obtener membresía activa actual mediante consulta directa
+      // Esta consulta es más confiable que confiar solo en membresia_activa_id
+      console.log("Buscando membresía activa por estado...");
+      const { data: membresiaActiva, error: membresiaActivaError } = await supabase
+        .from("membresias_usuarios")
+        .select(`
+          *,
+          tipo_membresia:membresia_tipos(*)
+        `)
+        .eq("usuario_id", userId)
+        .eq("estado", "activa")
+        .order('fecha_inicio', { ascending: false })
+        .limit(1)
+        .maybeSingle();  // No lanza error si no hay resultados
+        
+      if (membresiaActivaError) {
+        console.error("Error al buscar membresía activa:", membresiaActivaError);
+      } else if (membresiaActiva) {
+        console.log("Membresía activa encontrada:", membresiaActiva.id);
+      } else {
+        console.log("No se encontró membresía activa por estado");
+      }
+      
+      // PASO 3: Como respaldo, verificar usando el ID almacenado en el usuario
+      let membresiaPorId = null;
       if (userData.membresia_activa_id) {
-        try {
-          const { data: membresiaData, error: membresiaError } = await supabase
-            .from("membresias_usuarios")
-            .select("*")
-            .eq("id", userData.membresia_activa_id)
-            .single();
-            
-          if (!membresiaError && membresiaData) {
-            membresia = membresiaData;
-            console.log("Membresía activa cargada:", membresia.id);
-          }
-        } catch (membresiaErr) {
-          console.warn("Error al cargar membresía activa:", membresiaErr);
-          // Continuamos aunque no se pueda cargar la membresía
+        console.log("Buscando membresía por ID referenciado:", userData.membresia_activa_id);
+        
+        const { data: membresiaDatos, error: membresiaIdError } = await supabase
+          .from("membresias_usuarios")
+          .select(`
+            *,
+            tipo_membresia:membresia_tipos(*)
+          `)
+          .eq("id", userData.membresia_activa_id)
+          .maybeSingle();
+          
+        if (membresiaIdError) {
+          console.error("Error al buscar membresía por ID:", membresiaIdError);
+        } else if (membresiaDatos) {
+          console.log("Membresía encontrada por ID referenciado:", membresiaDatos.id);
+          membresiaPorId = membresiaDatos;
+        } else {
+          console.log("No se encontró membresía por ID referenciado");
         }
       }
       
-      // 3. Combinamos los datos
-      setUsuario({
+      // PASO 4: Resolver y corregir inconsistencias
+      let membresiaFinal = null;
+      
+      // Si encontramos una membresía activa por estado, esa tiene prioridad
+      if (membresiaActiva) {
+        membresiaFinal = membresiaActiva;
+        
+        // Si el ID en usuario no coincide, actualizar referencia
+        if (userData.membresia_activa_id !== membresiaActiva.id) {
+          console.log("Actualizando ID de membresía activa en usuario...");
+          
+          // Actualizar referencia en base de datos
+          const { error: updateError } = await supabase
+            .from("usuarios")
+            .update({ membresia_activa_id: membresiaActiva.id })
+            .eq("id", userId);
+            
+          if (updateError) {
+            console.error("Error actualizando referencia:", updateError);
+          } else {
+            console.log("Referencia actualizada correctamente");
+            // Actualizar también en memoria
+            userData.membresia_activa_id = membresiaActiva.id;
+          }
+        }
+      }
+      // Si no hay membresía activa por estado pero hay una referenciada, revisamos
+      else if (membresiaPorId) {
+        // Si la membresía referenciada no está activa, la activamos
+        if (membresiaPorId.estado !== 'activa') {
+          console.log("Activando membresía referenciada...");
+          
+          const { error: activateError } = await supabase
+            .from("membresias_usuarios")
+            .update({ estado: 'activa' })
+            .eq("id", membresiaPorId.id);
+            
+          if (activateError) {
+            console.error("Error activando membresía:", activateError);
+          } else {
+            console.log("Membresía activada correctamente");
+            membresiaPorId.estado = 'activa';
+          }
+        }
+        
+        membresiaFinal = membresiaPorId;
+      }
+      // Si no hay membresía válida pero hay referencia, limpiar
+      else if (userData.membresia_activa_id) {
+        console.log("Limpiando referencia inválida de membresía...");
+        
+        const { error: clearError } = await supabase
+          .from("usuarios")
+          .update({ membresia_activa_id: null })
+          .eq("id", userId);
+          
+        if (clearError) {
+          console.error("Error limpiando referencia:", clearError);
+        } else {
+          console.log("Referencia limpiada correctamente");
+          userData.membresia_activa_id = null;
+        }
+      }
+      
+      // PASO 5: Guardar usuario con membresía resuelta
+      const usuarioCompleto = {
         ...userData,
-        membresia_activa: membresia
-      });
+        membresia_activa: membresiaFinal
+      };
       
-      console.log("Datos de usuario establecidos");
+      setUsuario(usuarioCompleto);
+      console.log("Datos de usuario establecidos correctamente");
       
-      // 4. Cargar tipos de membresías disponibles
+      // PASO 6: Cargar tipos de membresías disponibles (independiente de la membresía del usuario)
+      console.log("Cargando tipos de membresías disponibles...");
       const { data: membresiasData, error: membresiasError } = await supabase
         .from("membresia_tipos")
         .select("*")
@@ -91,17 +186,17 @@ export default function GestionarMembresia() {
       console.log(`Cargados ${membresiasData?.length || 0} tipos de membresía`);
       setTiposMembresias(membresiasData || []);
       
-      // 5. Si no hay membresía seleccionada y hay tipos disponibles, seleccionar la primera
+      // Seleccionar tipo de membresía por defecto si no hay seleccionada
       if (membresiasData && membresiasData.length > 0 && !membresiaSeleccionada) {
         console.log("Seleccionando membresía por defecto:", membresiasData[0].id);
         setMembresiaSeleccionada(membresiasData[0].id);
       }
       
-      console.log("Carga de datos completada con éxito");
+      console.log("===== CARGA DE DATOS COMPLETADA =====");
     } catch (err) {
-      console.error("Error detallado al cargar datos:", err);
+      console.error("Error general al cargar datos:", err);
       setMensaje({
-        texto: "No se pudieron cargar los datos necesarios. Revisa la consola para más detalles.",
+        texto: "No se pudieron cargar los datos necesarios. Por favor, intenta de nuevo.",
         tipo: "error"
       });
     } finally {
@@ -147,90 +242,138 @@ export default function GestionarMembresia() {
     });
   };
 
-  // Asignar nueva membresía
+  // Asignar nueva membresía - versión mejorada y robusta
   const asignarMembresia = async () => {
-    if (!membresiaSeleccionada || !usuario) return;
+    if (!membresiaSeleccionada || !usuario) {
+      setMensaje({
+        texto: "Datos incompletos. No se puede asignar la membresía.",
+        tipo: "error"
+      });
+      return;
+    }
     
     setProcesando(true);
     setMensaje(null);
     
     try {
-      // Obtener detalles del tipo de membresía seleccionada
+      console.log("===== INICIANDO PROCESO DE ASIGNACIÓN DE MEMBRESÍA =====");
+      console.log("Usuario ID:", userId);
+      
+      // PASO 1: Obtener detalles del tipo de membresía seleccionada
       const tipoMembresia = tiposMembresias.find(tm => tm.id === membresiaSeleccionada);
       if (!tipoMembresia) {
         throw new Error("Tipo de membresía no encontrado");
       }
       
-      // Calcular fechas
-      const fechaInicio = new Date().toISOString();
-      const fechaFin = new Date();
+      console.log(`Asignando membresía: ${tipoMembresia.nombre} (ID: ${tipoMembresia.id})`);
+      console.log(`Duración: ${duracion} meses`);
+      
+      // PASO 2: Calcular fechas con precisión
+      const fechaInicio = new Date();
+      const fechaInicioISO = fechaInicio.toISOString();
+      
+      const fechaFin = new Date(fechaInicio);
       fechaFin.setMonth(fechaFin.getMonth() + duracion);
+      const fechaFinISO = fechaFin.toISOString();
       
-      console.log(`Asignando membresía ${tipoMembresia.nombre} por ${duracion} meses`);
+      console.log(`Fecha inicio: ${fechaInicioISO}`);
+      console.log(`Fecha fin: ${fechaFinISO}`);
       
-      // 0. Primero desactivamos todas las membresías activas del usuario
+      // PASO 3: Primero desactivamos TODAS las membresías activas del usuario
       console.log("Desactivando membresías activas anteriores...");
-      const { error: desactivarError } = await supabase
-        .from("membresias_usuarios")
-        .update({ estado: "inactiva" })
-        .eq("usuario_id", userId)
-        .eq("estado", "activa");
-        
-      if (desactivarError) {
-        console.warn("Error al desactivar membresías anteriores:", desactivarError);
-        // Continuamos aunque haya error, no es crítico
-      } else {
-        console.log("Membresías anteriores desactivadas correctamente");
-      }
       
-      // 1. Crear registro de membresía usando la API para evitar problemas con RLS
-      console.log("Creando registro de membresía con:", {
-        userId: userId,
-        tipoMembresiaId: membresiaSeleccionada,
-        fechaInicio: fechaInicio,
-        fechaFin: fechaFin.toISOString(),
-        estado: "activa"
-      });
-      
-      // Usar la API de creación de membresía que usa el service role key
-      const response = await fetch('/api/create-membership', {
+      // Usamos la API para evitar problemas de RLS
+      const desactivarResponse = await fetch('/api/update-membership', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           userId: userId,
-          tipoMembresiaId: membresiaSeleccionada,
-          fechaInicio: fechaInicio,
-          fechaFin: fechaFin.toISOString(),
-          estado: "activa"
+          operation: 'deactivate-all'
         }),
       });
       
-      const result = await response.json();
+      const desactivarResult = await desactivarResponse.json();
       
-      if (!response.ok || !result.success) {
-        console.error("Error al crear membresía a través de la API:", result.error);
-        throw new Error(result.error || "Error al crear la membresía");
+      if (!desactivarResponse.ok) {
+        console.warn("Error al desactivar membresías anteriores:", desactivarResult.error);
+        // Continuamos aunque haya error, no es crítico
+      } else {
+        console.log("Membresías anteriores desactivadas correctamente");
       }
       
-      const membresia = result.membresia;
-      console.log("Membresía creada correctamente a través de la API:", membresia);
+      // PASO 4: Crear nueva membresía usando la API
+      console.log("Creando nueva membresía...");
       
-      // Notificar al usuario por email - ahora lo hacemos mediante una API
+      // Datos para la nueva membresía
+      const nuevaMembresiaData = {
+        userId: userId,
+        tipoMembresiaId: membresiaSeleccionada,
+        fechaInicio: fechaInicioISO,
+        fechaFin: fechaFinISO,
+        estado: "activa"
+      };
+      
+      console.log("Datos para nueva membresía:", nuevaMembresiaData);
+      
+      // Usar la API de creación de membresía
+      const crearResponse = await fetch('/api/create-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(nuevaMembresiaData),
+      });
+      
+      const crearResult = await crearResponse.json();
+      
+      if (!crearResponse.ok || !crearResult.success) {
+        console.error("Error al crear membresía:", crearResult.error);
+        throw new Error(crearResult.error || "Error al crear la membresía. Consulta con el administrador.");
+      }
+      
+      const membresiaNueva = crearResult.membresia;
+      console.log("Membresía creada correctamente:", membresiaNueva);
+      
+      // PASO 5: Actualizar el campo membresia_activa_id en el usuario
+      console.log("Actualizando referencia de membresía en usuario...");
+      
+      const updateUserResponse = await fetch('/api/update-membership', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          operation: 'update-reference',
+          membresiaId: membresiaNueva.id
+        }),
+      });
+      
+      const updateUserResult = await updateUserResponse.json();
+      
+      if (!updateUserResponse.ok) {
+        console.warn("Error al actualizar referencia en usuario:", updateUserResult.error);
+        // No es crítico para continuar
+      } else {
+        console.log("Referencia de membresía actualizada correctamente");
+      }
+      
+      // PASO 6: Notificar al usuario por email
       if (usuario.email) {
         try {
           console.log("Enviando notificación por email...");
           
-          // Obtenemos la sesión para incluir el token
+          // Obtener sesión para el token
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           
           if (sessionError || !session) {
             throw new Error("No se pudo obtener la sesión");
           }
           
-          // Enviamos la notificación a través de la API
-          const response = await fetch('/api/notify-membership', {
+          // Enviar notificación
+          const notifyResponse = await fetch('/api/notify-membership', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -239,40 +382,45 @@ export default function GestionarMembresia() {
               email: usuario.email,
               nombre: usuario.nombre || usuario.username || "Usuario",
               tipoMembresia: tipoMembresia.nombre,
-              fechaExpiracion: fechaFin.toISOString(),
+              fechaExpiracion: fechaFinISO,
               token: session.access_token,
             }),
           });
           
-          const result = await response.json();
+          const notifyResult = await notifyResponse.json();
           
-          if (response.ok && result.success) {
-            console.log("Email enviado correctamente");
+          if (notifyResponse.ok && notifyResult.success) {
+            console.log("Email de notificación enviado correctamente");
           } else {
-            console.warn("No se pudo enviar el email de notificación:", result.error || "Error desconocido");
+            console.warn("No se pudo enviar email de notificación:", notifyResult.error);
           }
         } catch (emailError) {
           console.error("Error al enviar notificación por email:", emailError);
-          // No interrumpimos el flujo si falla el email
+          // No interrumpir el flujo por error de email
         }
       }
       
+      // PASO 7: Mostrar mensaje de éxito y redireccionar
+      console.log("Proceso completado con éxito");
       setMensaje({
-        texto: `Membresía ${tipoMembresia.nombre} asignada correctamente`,
+        texto: `Membresía ${tipoMembresia.nombre} asignada correctamente.`,
         tipo: "success"
       });
       
-      // Recargar datos
+      // Recargar datos del usuario para ver el cambio
       await cargarDatosUsuario();
       
-      // Redireccionar después de 1.5 segundos
+      // Redireccionar después de un tiempo
+      console.log("Redireccionando a perfil de usuario en 2 segundos...");
       setTimeout(() => {
         router.push(`/admin/dashboard/usuarios/${userId}`);
-      }, 1500);
+      }, 2000);
+      
+      console.log("===== PROCESO DE ASIGNACIÓN FINALIZADO =====");
     } catch (err: any) {
-      console.error("Error al asignar membresía:", err);
+      console.error("Error crítico asignando membresía:", err);
       setMensaje({
-        texto: `Error al asignar membresía: ${err.message || JSON.stringify(err)}`,
+        texto: `Error al asignar membresía: ${err.message || "Error desconocido"}`,
         tipo: "error"
       });
     } finally {
