@@ -70,6 +70,8 @@ export default function GestionUsuarios() {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
   const [filtro, setFiltro] = useState("");
+  const [filtroMembresia, setFiltroMembresia] = useState("todos"); // "todos", "con_membresia", "sin_membresia"
+  const [tiposMembresia, setTiposMembresia] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [permisosVerificados, setPermisosVerificados] = useState(false);
@@ -175,60 +177,72 @@ export default function GestionUsuarios() {
       
       console.log("Test de conexión exitoso, procediendo a cargar usuarios");
       
-      // Consulta mejorada: obtener usuarios con sus membresías activas
-      console.log("Consultando usuarios con membresías activas...");
-      const { data, error } = await supabase
+      // Consulta simple para obtener TODOS los usuarios primero
+      console.log("Consultando todos los usuarios...");
+      const { data: todosUsuarios, error: errorTodos } = await supabase
         .from("usuarios")
+        .select("*")
+        .order("created_at", { ascending: false });
+        
+      if (errorTodos) {
+        console.error("Error al cargar usuarios:", errorTodos);
+        throw new Error(errorTodos.message || "Error al cargar datos");
+      }
+      
+      console.log(`Cargados ${todosUsuarios?.length || 0} usuarios básicos`);
+      
+      // Ahora consultamos las membresías activas
+      console.log("Consultando membresías activas...");
+      const { data: membresiasActivas, error: errorMembresias } = await supabase
+        .from("membresias_usuarios")
         .select(`
-          *,
-          membresias_activas:membresias_usuarios!inner(
-            id,
-            estado,
-            tipo_membresia_id,
-            tipo_membresia:membresia_tipos (
-              id,
-              nombre
-            )
+          id,
+          usuario_id,
+          tipo_membresia_id,
+          tipo_membresia:membresia_tipos (
+            id, 
+            nombre
           )
         `)
-        .eq("membresias_usuarios.estado", "activa")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error en consulta principal:", error);
-        // Si falla la consulta con join, intentar solo con usuarios
-        console.log("Intentando consulta simple sin membresías...");
-        const { data: usuariosSimple, error: errorSimple } = await supabase
-          .from("usuarios")
-          .select("*")
-          .order("created_at", { ascending: false });
-          
-        if (errorSimple) {
-          console.error("Error también en consulta simple:", errorSimple);
-          throw new Error(errorSimple.message || "Error al cargar datos");
-        }
+        .eq("estado", "activa");
         
-        // Si llegamos aquí, tenemos datos básicos sin membresías
-        console.log(`Cargados ${usuariosSimple.length} usuarios sin información de membresías`);
-        setUsuarios(usuariosSimple || []);
+      if (errorMembresias) {
+        console.error("Error al cargar membresías:", errorMembresias);
+        // Si falla, devolvemos los usuarios básicos sin info de membresía
+        setUsuarios(todosUsuarios || []);
         return;
       }
-
-      // Si la consulta con membresías activas funciona
-      console.log("Consulta con membresías completada. Procesando datos...");
       
-      // Procesar los datos para añadir la membresía activa al usuario
-      const usuariosProcesados = data.map(usuario => {
-        if (usuario.membresias_activas && usuario.membresias_activas.length > 0) {
-          // Tomar la primera membresía activa (debería ser solo una)
-          const membresiaActiva = Array.isArray(usuario.membresias_activas) 
-            ? usuario.membresias_activas[0] 
-            : usuario.membresias_activas;
-          
-          // Añadir el ID de membresía activa y asegurar que está actualizado
+      console.log(`Cargadas ${membresiasActivas?.length || 0} membresías activas`);
+      
+      // Cargar todos los tipos de membresía para los filtros
+      const { data: tiposMembresiaData, error: tiposError } = await supabase
+        .from("membresia_tipos")
+        .select("id, nombre")
+        .order("precio", { ascending: true });
+        
+      if (!tiposError && tiposMembresiaData) {
+        console.log(`Cargados ${tiposMembresiaData.length} tipos de membresía`);
+        setTiposMembresia(tiposMembresiaData);
+      } else {
+        console.error("Error al cargar tipos de membresía:", tiposError);
+      }
+      
+      // Creamos un mapa para acceso rápido a las membresías por ID de usuario
+      const membresiasPorUsuario = new Map();
+      membresiasActivas?.forEach(membresia => {
+        membresiasPorUsuario.set(membresia.usuario_id, membresia);
+      });
+      
+      // Procesamos los usuarios para añadir su información de membresía
+      const usuariosProcesados = todosUsuarios.map(usuario => {
+        const membresiaActiva = membresiasPorUsuario.get(usuario.id);
+        
+        if (membresiaActiva) {
+          // Si encontramos membresía activa, actualizamos la referencia si es necesario
           if (usuario.membresia_activa_id !== membresiaActiva.id) {
             console.log(`Actualizando referencia de membresía para usuario ${usuario.id}`);
-            // Intentar actualizar la referencia (asíncrono, no bloqueamos)
+            // Intentar actualizar la referencia (asíncrono)
             supabase
               .from("usuarios")
               .update({ membresia_activa_id: membresiaActiva.id })
@@ -240,17 +254,20 @@ export default function GestionUsuarios() {
           return {
             ...usuario,
             membresia_activa_id: membresiaActiva.id,
-            tiene_membresia_activa: true
+            membresia_activa: membresiaActiva,
+            tiene_membresia_activa: true,
+            tipo_membresia_nombre: membresiaActiva.tipo_membresia?.nombre || "Plan activo"
           };
         }
         
         return {
           ...usuario,
-          tiene_membresia_activa: false
+          tiene_membresia_activa: false,
+          tipo_membresia_nombre: null
         };
       });
       
-      console.log(`Procesados ${usuariosProcesados.length} usuarios con información de membresías`);
+      console.log(`Procesados ${usuariosProcesados.length} usuarios con información completa`);
       setUsuarios(usuariosProcesados || []);
     } catch (err) {
       console.error("Error detallado al cargar usuarios:", err);
@@ -311,17 +328,35 @@ export default function GestionUsuarios() {
     });
   };
 
-  // Filtrar usuarios
+  // Filtrar usuarios por texto y membresía
   const usuariosFiltrados = usuarios.filter(
-    (usuario) =>
-      usuario.email.toLowerCase().includes(filtro.toLowerCase()) ||
-      usuario.username.toLowerCase().includes(filtro.toLowerCase()) ||
-      (usuario.nombre &&
-        usuario.nombre.toLowerCase().includes(filtro.toLowerCase())) ||
-      (usuario.apellidos &&
-        usuario.apellidos.toLowerCase().includes(filtro.toLowerCase())) ||
-      (usuario.empresa &&
-        usuario.empresa.toLowerCase().includes(filtro.toLowerCase()))
+    (usuario) => {
+      // Filtro de texto
+      const cumpleFiltroTexto = 
+        usuario.email.toLowerCase().includes(filtro.toLowerCase()) ||
+        usuario.username.toLowerCase().includes(filtro.toLowerCase()) ||
+        (usuario.nombre &&
+          usuario.nombre.toLowerCase().includes(filtro.toLowerCase())) ||
+        (usuario.apellidos &&
+          usuario.apellidos.toLowerCase().includes(filtro.toLowerCase())) ||
+        (usuario.empresa &&
+          usuario.empresa.toLowerCase().includes(filtro.toLowerCase()));
+      
+      // Filtro de membresía
+      let cumpleFiltroMembresia = true;
+      
+      if (filtroMembresia === "con_membresia") {
+        cumpleFiltroMembresia = usuario.tiene_membresia_activa === true;
+      } else if (filtroMembresia === "sin_membresia") {
+        cumpleFiltroMembresia = usuario.tiene_membresia_activa !== true;
+      } else if (filtroMembresia.startsWith("tipo_")) {
+        // Filtrar por tipo específico de membresía
+        const tipoId = filtroMembresia.replace("tipo_", "");
+        cumpleFiltroMembresia = usuario.membresia_activa?.tipo_membresia_id === tipoId;
+      }
+      
+      return cumpleFiltroTexto && cumpleFiltroMembresia;
+    }
   );
 
   // Paginación
@@ -342,8 +377,9 @@ export default function GestionUsuarios() {
 
       <Alert mensaje={mensaje} onClose={() => setMensaje(null)} />
 
-      {/* Buscador */}
-      <div className="mb-6">
+      {/* Buscador y filtros */}
+      <div className="mb-6 space-y-4">
+        {/* Buscador */}
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg
@@ -372,6 +408,95 @@ export default function GestionUsuarios() {
             }}
           />
         </div>
+        
+        {/* Filtros de membresía */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-medium text-gray-700">Filtrar por membresía:</span>
+          
+          {/* Botón "Todos" */}
+          <button
+            onClick={() => {
+              setFiltroMembresia("todos");
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              filtroMembresia === "todos" 
+                ? "bg-indigo-600 text-white" 
+                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+            }`}
+          >
+            Todos
+          </button>
+          
+          {/* Botón "Con membresía" */}
+          <button
+            onClick={() => {
+              setFiltroMembresia("con_membresia");
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              filtroMembresia === "con_membresia" 
+                ? "bg-green-600 text-white" 
+                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+            }`}
+          >
+            Con membresía
+          </button>
+          
+          {/* Botón "Sin membresía" */}
+          <button
+            onClick={() => {
+              setFiltroMembresia("sin_membresia");
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              filtroMembresia === "sin_membresia" 
+                ? "bg-red-600 text-white" 
+                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+            }`}
+          >
+            Sin membresía
+          </button>
+          
+          {/* Filtros por tipo de membresía */}
+          {tiposMembresia.map(tipo => (
+            <button
+              key={tipo.id}
+              onClick={() => {
+                setFiltroMembresia(`tipo_${tipo.id}`);
+                setCurrentPage(1);
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                filtroMembresia === `tipo_${tipo.id}` 
+                  ? "bg-blue-600 text-white" 
+                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+              }`}
+            >
+              {tipo.nombre}
+            </button>
+          ))}
+        </div>
+        
+        {/* Indicador de filtros activos */}
+        {(filtro || filtroMembresia !== "todos") && (
+          <div className="flex justify-between items-center pt-2">
+            <div className="text-sm text-gray-600">
+              Mostrando {usuariosFiltrados.length} de {usuarios.length} usuarios
+            </div>
+            
+            <Button 
+              variant="secondary" 
+              size="sm"
+              onClick={() => {
+                setFiltro("");
+                setFiltroMembresia("todos");
+                setCurrentPage(1);
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          </div>
+        )}
       </div>
 
       {loading ? (
