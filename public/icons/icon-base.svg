@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fondo principal -->
+  <rect width="512" height="512" fill="#4f46e5" />
+  
+  <!-- Círculo blanco central -->
+  <circle cx="256" cy="256" r="200" fill="white" />
+  
+  <!-- Letra "L" -->
+  <text x="256" y="256" dominant-baseline="middle" text-anchor="middle" 
+        font-family="Arial, sans-serif" font-weight="bold" font-size="240" fill="#4f46e5">L</text>
+  
+  <!-- Decoración circular -->
+  <circle cx="256" cy="256" r="220" stroke="#4f46e5" stroke-width="8" fill="none" />
+</svg>

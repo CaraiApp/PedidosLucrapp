@@ -1,0 +1,82 @@
+<\!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator for Lucrapp</title>
+    <style>
+        canvas {
+            border: 1px solid #ccc;
+            margin: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sizes {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lucrapp Icon Generator</h1>
+        <div class="sizes" id="canvases"></div>
+    </div>
+
+    <script>
+        const sizes = [512, 384, 192, 152, 144, 128, 96, 72];
+        const canvasContainer = document.getElementById('canvases');
+
+        // Crear íconos para cada tamaño
+        sizes.forEach(size => {
+            generateIcon(size);
+        });
+
+        function generateIcon(size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            canvasContainer.appendChild(canvas);
+
+            const ctx = canvas.getContext('2d');
+
+            // Fondo
+            ctx.fillStyle = '#4f46e5'; // Color principal de Lucrapp
+            ctx.fillRect(0, 0, size, size);
+
+            // Círculo central
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            // Letra "L" simplificada
+            ctx.fillStyle = '#4f46e5';
+            ctx.font = `bold ${size * 0.5}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('L', size / 2, size / 2);
+
+            // Crear un enlace de descarga
+            const link = document.createElement('a');
+            link.download = `icon-${size}x${size}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.textContent = `Descargar ${size}x${size}`;
+            link.style.display = 'block';
+            link.style.margin = '5px';
+            
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.flexDirection = 'column';
+            div.style.alignItems = 'center';
+            div.style.margin = '10px';
+            div.appendChild(canvas);
+            div.appendChild(link);
+            
+            canvasContainer.appendChild(div);
+        }
+    </script>
+</body>
+</html>

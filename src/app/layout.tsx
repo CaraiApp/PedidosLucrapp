@@ -9,8 +9,16 @@ export const metadata: Metadata = {
   description: "Plataforma para gestionar pedidos a proveedores de forma eficiente",
   manifest: '/manifest.json',
   icons: {
+    icon: [
+      { url: '/icons/icon-base.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
     apple: [
-      { url: '/icons/icon-192x192.png' },
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    shortcut: [
+      { url: '/favicon.ico' },
     ],
   },
 };

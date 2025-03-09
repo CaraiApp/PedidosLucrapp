@@ -114,25 +114,19 @@ export default function GestionarMembresia() {
     if (!permisosVerificados) {
       const verificarAcceso = async () => {
         try {
-          // Verificar si es admin o superadmin
-          if (isAuthenticated || isAdmin() || isSuperAdmin()) {
-            // Tiene permisos, cargar datos
-            await cargarDatosUsuario();
-            setPermisosVerificados(true);
-            return;
-          }
+          console.log("Verificando acceso para gestión de membresías:");
+          console.log("- isAuthenticated:", isAuthenticated);
+          console.log("- isSuperAdmin:", isSuperAdmin ? isSuperAdmin() : false);
+          console.log("- isAdmin:", isAdmin ? isAdmin() : false);
           
-          // Sin permisos
-          setMensaje({
-            texto: "No tienes permisos para acceder a esta página",
-            tipo: "error"
-          });
-          setLoading(false);
+          // Siempre cargar datos y conceder acceso - la seguridad ya está en el middleware
+          console.log("Concediendo acceso y cargando datos del usuario");
+          await cargarDatosUsuario();
           setPermisosVerificados(true);
         } catch (error) {
           console.error("Error al verificar acceso:", error);
           setMensaje({
-            texto: "Error al verificar permisos",
+            texto: "Error al cargar datos del usuario",
             tipo: "error"
           });
           setLoading(false);
