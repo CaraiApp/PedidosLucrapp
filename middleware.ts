@@ -4,8 +4,25 @@ import type { NextRequest } from "next/server";
 
 // Este middleware es simplificado para mejor soporte en producción
 export async function middleware(req: NextRequest) {
-  // Primero, verificamos si es una ruta que no necesita verificación
-  const publicPaths = ['/login', '/register', '/', '/api'];
+  // Procesar URL hash para recuperación de contraseña
+  if (req.nextUrl.pathname === '/recuperar-password' && req.nextUrl.hash) {
+    const url = req.nextUrl.clone();
+    const hashParams = url.hash.substring(1); // Quitar el #
+    
+    if (hashParams.includes('access_token') || hashParams.includes('type=recovery')) {
+      // Convertir hash params a search params
+      const params = new URLSearchParams(hashParams);
+      params.forEach((value, key) => {
+        url.searchParams.set(key, value);
+      });
+      url.hash = '';
+      
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Verificar si es una ruta que no necesita verificación
+  const publicPaths = ['/login', '/register', '/', '/api', '/recuperar-password'];
   const isPublicPath = publicPaths.some(path => 
     req.nextUrl.pathname === path || req.nextUrl.pathname.startsWith(`${path}/`)
   );

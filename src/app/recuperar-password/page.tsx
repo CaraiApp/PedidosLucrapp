@@ -25,9 +25,12 @@ function ResetPasswordContent() {
   });
 
   useEffect(() => {
-    // Si hay un token en la URL, vamos directo al paso de cambiar contraseña
+    // Si hay un token en la URL o hay acceso de type=recovery, vamos directo al paso de cambiar contraseña
     const token = searchParams.get('token');
-    if (token) {
+    const type = searchParams.get('type');
+    const accessToken = searchParams.get('access_token');
+    
+    if (token || type === 'recovery' || accessToken) {
       setStep('password');
     }
   }, [searchParams]);
@@ -78,7 +81,7 @@ function ResetPasswordContent() {
     
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/recuperar-password`,
+        redirectTo: `${window.location.origin}/recuperar-password?type=recovery`,
       });
       
       if (error) throw error;
