@@ -80,16 +80,44 @@ function ResetPasswordContent() {
     setIsLoading(true);
     
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Registro de información adicional para diagnosticar problemas
+      console.log("Enviando solicitud de restablecimiento a:", email);
+      console.log("URL de redirección:", `${window.location.origin}/recuperar-password?type=recovery`);
+      
+      const { error, data } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/recuperar-password?type=recovery`,
       });
       
-      if (error) throw error;
+      // Registrar resultado para diagnóstico
+      console.log("Respuesta recibida:", { error, data });
       
-      setSuccess("Te hemos enviado un correo con instrucciones para restablecer tu contraseña. Por favor, revisa tu bandeja de entrada.");
+      if (error) {
+        console.error("Error detallado de Supabase:", error);
+        
+        // Mensajes de error específicos
+        if (error.message?.includes("rate limit")) {
+          throw new Error("Has excedido el límite de intentos. Por favor, espera unos minutos antes de intentar nuevamente.");
+        } else if (error.message?.includes("not found") || error.message?.includes("No user found")) {
+          throw new Error("No existe ninguna cuenta con este correo electrónico.");
+        } else if (error.message?.includes("Unable to validate email address")) {
+          throw new Error("La dirección de correo electrónico no es válida.");
+        } else if (error.status === 429 || error.status === "429") {
+          throw new Error("Has excedido el límite de intentos. Por favor, espera unos minutos antes de intentar nuevamente.");
+        } else {
+          // Mensaje genérico para cualquier otro error, pero logueamos el error real para diagnóstico
+          throw new Error("No se pudo procesar tu solicitud. Inténtalo de nuevo más tarde.");
+        }
+      } else {
+        // Si no hay error, mostrar mensaje de éxito incluso si el correo no existe
+        // Esto es una práctica de seguridad para no revelar qué direcciones existen en la base de datos
+        setSuccess("Si existe una cuenta con este correo electrónico, te enviaremos instrucciones para restablecer tu contraseña. Por favor, revisa tu bandeja de entrada.");
+        return; // Para evitar ejecutar el resto del código
+      }
     } catch (err: any) {
       console.error("Error al solicitar restablecimiento:", err.message);
-      setError("No se pudo enviar el correo de restablecimiento. Verifica tu dirección de correo e inténtalo de nuevo.");
+      
+      // Usar mensaje personalizado si existe, o el mensaje genérico
+      setError(err.message || "No se pudo enviar el correo de restablecimiento. Verifica tu dirección de correo e inténtalo de nuevo.");
     } finally {
       setIsLoading(false);
     }
