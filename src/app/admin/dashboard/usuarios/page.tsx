@@ -175,30 +175,83 @@ export default function GestionUsuarios() {
       
       console.log("Test de conexión exitoso, procediendo a cargar usuarios");
       
-      // Realizar la consulta simplificada primero para evitar referencias complejas
+      // Consulta mejorada: obtener usuarios con sus membresías activas
+      console.log("Consultando usuarios con membresías activas...");
       const { data, error } = await supabase
         .from("usuarios")
-        .select("*")
+        .select(`
+          *,
+          membresias_activas:membresias_usuarios!inner(
+            id,
+            estado,
+            tipo_membresia_id,
+            tipo_membresia:membresia_tipos (
+              id,
+              nombre
+            )
+          )
+        `)
+        .eq("membresias_usuarios.estado", "activa")
         .order("created_at", { ascending: false });
 
       if (error) {
         console.error("Error en consulta principal:", error);
-        throw new Error(error.message || "Error al cargar datos");
-      }
-
-      // Obtener membresías en una segunda consulta si es necesario
-      if (data && data.length > 0) {
-        try {
-          // Aquí podrías cargar membresías por separado si necesitas esa información
-          // Por ahora simplemente usamos los datos básicos
-          console.log(`Cargados ${data.length} usuarios correctamente`);
-        } catch (membresiaErr) {
-          console.warn("Error al cargar membresías:", membresiaErr);
-          // Continuamos con los datos básicos
+        // Si falla la consulta con join, intentar solo con usuarios
+        console.log("Intentando consulta simple sin membresías...");
+        const { data: usuariosSimple, error: errorSimple } = await supabase
+          .from("usuarios")
+          .select("*")
+          .order("created_at", { ascending: false });
+          
+        if (errorSimple) {
+          console.error("Error también en consulta simple:", errorSimple);
+          throw new Error(errorSimple.message || "Error al cargar datos");
         }
+        
+        // Si llegamos aquí, tenemos datos básicos sin membresías
+        console.log(`Cargados ${usuariosSimple.length} usuarios sin información de membresías`);
+        setUsuarios(usuariosSimple || []);
+        return;
       }
 
-      setUsuarios(data || []);
+      // Si la consulta con membresías activas funciona
+      console.log("Consulta con membresías completada. Procesando datos...");
+      
+      // Procesar los datos para añadir la membresía activa al usuario
+      const usuariosProcesados = data.map(usuario => {
+        if (usuario.membresias_activas && usuario.membresias_activas.length > 0) {
+          // Tomar la primera membresía activa (debería ser solo una)
+          const membresiaActiva = Array.isArray(usuario.membresias_activas) 
+            ? usuario.membresias_activas[0] 
+            : usuario.membresias_activas;
+          
+          // Añadir el ID de membresía activa y asegurar que está actualizado
+          if (usuario.membresia_activa_id !== membresiaActiva.id) {
+            console.log(`Actualizando referencia de membresía para usuario ${usuario.id}`);
+            // Intentar actualizar la referencia (asíncrono, no bloqueamos)
+            supabase
+              .from("usuarios")
+              .update({ membresia_activa_id: membresiaActiva.id })
+              .eq("id", usuario.id)
+              .then(() => console.log(`Referencia actualizada para ${usuario.id}`))
+              .catch(err => console.error(`Error al actualizar referencia: ${err}`));
+          }
+          
+          return {
+            ...usuario,
+            membresia_activa_id: membresiaActiva.id,
+            tiene_membresia_activa: true
+          };
+        }
+        
+        return {
+          ...usuario,
+          tiene_membresia_activa: false
+        };
+      });
+      
+      console.log(`Procesados ${usuariosProcesados.length} usuarios con información de membresías`);
+      setUsuarios(usuariosProcesados || []);
     } catch (err) {
       console.error("Error detallado al cargar usuarios:", err);
       setMensaje({
@@ -400,7 +453,7 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {usuario.membresia_activa_id ? (
+                        {usuario.tiene_membresia_activa || usuario.membresia_activa_id ? (
                           <div className="flex flex-col space-y-1">
                             <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                               <MembresiaInfo usuarioId={usuario.id} />
