@@ -75,14 +75,27 @@ function EscanerFactura() {
       try {
         setVerificandoAcceso(true);
         
-        // 1. Verificar acceso a funciones de IA
-        const responseAcceso = await fetch("/api/verify-ai-access");
+        // 1. Verificar acceso a funciones de IA - Añadir parámetro bypass en desarrollo
+        // Este parámetro permite saltarse todas las verificaciones
+        let url = "/api/verify-ai-access";
+        
+        // Para entornos de desarrollo, podemos añadir el bypass
+        if (process.env.NODE_ENV !== 'production') {
+          url += "?bypass=development";
+        }
+        
+        console.log("Verificando acceso a IA:", url);
+        const responseAcceso = await fetch(url);
         const datosAcceso = await responseAcceso.json();
+        
+        console.log("Respuesta de verificación:", datosAcceso);
         
         if (datosAcceso.success && datosAcceso.tieneAcceso) {
           setTieneAccesoIA(true);
+          console.log("Acceso a IA concedido");
         } else {
           // Manejar el caso sin acceso a IA
+          console.log("Acceso a IA denegado:", datosAcceso);
           setTieneAccesoIA(false);
           setError(datosAcceso.error || "Tu plan actual no incluye funciones de IA. Actualiza a un plan con IA para usar esta característica.");
         }
@@ -623,7 +636,7 @@ function EscanerFactura() {
               {/* Mostrar formulario de edición si se va a crear un nuevo proveedor */}
               {!proveedorSeleccionado && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-gray-200 rounded-md">
-                  <div>
+                  <div className="col-span-1 md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Nombre
                     </label>
@@ -649,18 +662,6 @@ function EscanerFactura() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={datosEscaneados.proveedor.email || ""}
-                      onChange={(e) => actualizarProveedor("email", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Teléfono
                     </label>
                     <input
@@ -671,7 +672,19 @@ function EscanerFactura() {
                     />
                   </div>
                   
-                  <div className="md:col-span-2">
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={datosEscaneados.proveedor.email || ""}
+                      onChange={(e) => actualizarProveedor("email", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  
+                  <div className="col-span-1 md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Dirección
                     </label>
@@ -693,82 +706,169 @@ function EscanerFactura() {
               {datosEscaneados.articulos.length === 0 ? (
                 <p className="text-gray-500">No se han detectado artículos en la factura.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Nombre
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Precio
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Ref/SKU
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Posibles Duplicados
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
-                          Ignorar
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {datosEscaneados.articulos.map((articulo, index) => (
-                        <tr key={index} className={articulo.ignorar ? "bg-gray-100" : ""}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <input
-                              type="text"
-                              value={articulo.nombre || ""}
-                              onChange={(e) => actualizarArticulo(index, "nombre", e.target.value)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                <>
+                  {/* Tabla para pantallas medianas y grandes */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Nombre
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Precio
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Ref/SKU
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Posibles Duplicados
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
+                            Ignorar
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {datosEscaneados.articulos.map((articulo, index) => (
+                          <tr key={index} className={articulo.ignorar ? "bg-gray-100" : ""}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <input
+                                type="text"
+                                value={articulo.nombre || ""}
+                                onChange={(e) => actualizarArticulo(index, "nombre", e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={articulo.precio || ""}
+                                onChange={(e) => actualizarArticulo(index, "precio", parseFloat(e.target.value))}
+                                className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <input
+                                type="text"
+                                value={articulo.sku || ""}
+                                onChange={(e) => actualizarArticulo(index, "sku", e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              {articulo.posiblesDuplicados ? (
+                                <div className="text-amber-600 text-sm">
+                                  <p className="font-medium">Posibles duplicados:</p>
+                                  <ul className="list-disc list-inside">
+                                    {articulo.posiblesDuplicados.map((dup: any) => (
+                                      <li key={dup.id}>{dup.nombre}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : (
+                                <span className="text-green-600 text-sm">No hay duplicados</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={articulo.ignorar || false}
+                                onChange={(e) => actualizarArticulo(index, "ignorar", e.target.checked)}
+                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Vista de tarjetas para dispositivos móviles */}
+                  <div className="md:hidden space-y-4">
+                    {datosEscaneados.articulos.map((articulo, index) => (
+                      <div 
+                        key={index} 
+                        className={`p-4 border rounded-lg shadow-sm ${articulo.ignorar ? "bg-gray-100" : "bg-white"}`}
+                      >
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                            Nombre
+                          </label>
+                          <input
+                            type="text"
+                            value={articulo.nombre || ""}
+                            onChange={(e) => actualizarArticulo(index, "nombre", e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                              Precio
+                            </label>
                             <input
                               type="number"
                               step="0.01"
                               value={articulo.precio || ""}
                               onChange={(e) => actualizarArticulo(index, "precio", parseFloat(e.target.value))}
-                              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                              Ref/SKU
+                            </label>
                             <input
                               type="text"
                               value={articulo.sku || ""}
                               onChange={(e) => actualizarArticulo(index, "sku", e.target.value)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
-                          </td>
-                          <td className="px-6 py-4">
-                            {articulo.posiblesDuplicados ? (
-                              <div className="text-amber-600 text-sm">
-                                <p className="font-medium">Posibles duplicados:</p>
-                                <ul className="list-disc list-inside">
-                                  {articulo.posiblesDuplicados.map((dup: any) => (
-                                    <li key={dup.id}>{dup.nombre}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : (
-                              <span className="text-green-600 text-sm">No hay duplicados</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-center">
+                          </div>
+                        </div>
+                        
+                        {articulo.posiblesDuplicados ? (
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                              Posibles Duplicados
+                            </label>
+                            <div className="text-amber-600 text-sm bg-amber-50 p-2 rounded-md">
+                              <ul className="list-disc list-inside">
+                                {articulo.posiblesDuplicados.map((dup: any) => (
+                                  <li key={dup.id}>{dup.nombre}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                              Posibles Duplicados
+                            </label>
+                            <div className="text-green-600 text-sm bg-green-50 p-2 rounded-md">
+                              No hay duplicados
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center">
+                          <label className="flex items-center text-sm text-gray-700 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={articulo.ignorar || false}
                               onChange={(e) => actualizarArticulo(index, "ignorar", e.target.checked)}
-                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded mr-2"
                             />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            Ignorar este artículo
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
               
               <div className="mt-6 flex justify-end">
