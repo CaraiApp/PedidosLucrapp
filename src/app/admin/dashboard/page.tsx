@@ -190,7 +190,7 @@ export default function AdminDashboard() {
             </Link>
             
             <Link 
-              href="/admin/dashboard/reportes" 
+              href="/admin/dashboard/estadisticas" 
               className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow"
             >
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Reportes y Estadísticas</h3>

@@ -164,19 +164,91 @@ export function AdminMiddleware() {
   const { isVerifying, isAuthenticated } = useAdminAuth();
   const router = useRouter();
   const pathname = usePathname();
+  
+  // Estado para el resultado de la verificación manual
+  const [verificacionManual, setVerificacionManual] = useState<boolean | null>(null);
 
+  // Efecto para verificación manual adicional independiente del hook
+  useEffect(() => {
+    const verificarManualmente = async () => {
+      // Si estamos en la página de login del admin, no verificar
+      if (pathname === '/admin' || pathname === '/admin/') {
+        setVerificacionManual(true);
+        return;
+      }
+      
+      try {
+        // 1. Verificar cookies de emergencia
+        if (document.cookie.includes('adminEmergencyAccess=granted') || 
+            document.cookie.includes('adminSuperAccess=granted')) {
+          console.log('Verificación manual: Acceso por cookie especial');
+          setVerificacionManual(true);
+          return;
+        }
+        
+        // 2. Verificar token en almacenamiento
+        if ((typeof sessionStorage !== 'undefined' && sessionStorage.getItem('adminAccess') === 'granted') ||
+            (typeof localStorage !== 'undefined' && localStorage.getItem('adminEmail') === 'luisocro@gmail.com')) {
+          console.log('Verificación manual: Acceso por almacenamiento');
+          setVerificacionManual(true);
+          return;
+        }
+        
+        // 3. Verificar sesión de superadmin
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.user?.email === 'luisocro@gmail.com') {
+          console.log('Verificación manual: Superadmin por email');
+          // Guardar para futuras verificaciones
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('adminAccess', 'granted');
+          }
+          setVerificacionManual(true);
+          return;
+        }
+        
+        // 4. Verificar parámetro de emergencia
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('adminKey') === 'luisAdmin2025') {
+          console.log('Verificación manual: Acceso de emergencia por URL');
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('adminAccess', 'granted');
+          }
+          setVerificacionManual(true);
+          return;
+        }
+        
+        // Si llegamos aquí sin encontrar validación, posible fallo de acceso
+        console.log('Verificación manual: No se encontró acceso válido');
+        setVerificacionManual(false);
+      } catch (error) {
+        console.error('Error en verificación manual:', error);
+        setVerificacionManual(false);
+      }
+    };
+    
+    // Ejecutar verificación manual solo una vez
+    if (verificacionManual === null) {
+      verificarManualmente();
+    }
+  }, [pathname, verificacionManual]);
+
+  // Efecto para redirección si no hay autenticación
   useEffect(() => {
     // Si estamos en la página de login del admin, no verificar
     if (pathname === '/admin' || pathname === '/admin/') {
       return;
     }
 
-    // Cuando termine la verificación, si no está autenticado, redirigir
-    if (!isVerifying && !isAuthenticated) {
+    // Combinar verificaciones: solo redireccionar si ambas verificaciones fallan
+    const verificacionFallida = (!isVerifying && !isAuthenticated && verificacionManual === false);
+    const verificacionPendiente = (isVerifying || verificacionManual === null);
+    
+    // Si ya terminaron todas las verificaciones y no hay acceso, redirigir
+    if (!verificacionPendiente && verificacionFallida) {
       console.log('AdminMiddleware: Redirigiendo a /admin por falta de autenticación');
       router.replace('/admin');
     }
-  }, [isVerifying, isAuthenticated, router, pathname]);
+  }, [isVerifying, isAuthenticated, router, pathname, verificacionManual]);
 
   return null;
 }

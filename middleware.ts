@@ -141,9 +141,12 @@ export async function middleware(req: NextRequest) {
 // Configuración de middleware para protección de rutas
 export const config = {
   matcher: [
-    // Proteger específicamente las rutas de admin con mayor prioridad
+    // CRÍTICO: Proteger específicamente las rutas de admin con alta prioridad y patrón extenso para cualquier subruta
+    '/admin',
+    '/admin/dashboard/:path*',
+    '/admin/dashboard',
     '/admin/:path*',
     // Excluir archivos estáticos y API routes para las demás rutas
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api).*)',
   ],
 };
