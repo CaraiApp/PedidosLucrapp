@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 export default function ResetPassword() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [step, setStep] = useState<'email' | 'password'>(searchParams.has('token') ? 'password' : 'email');
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [passwordStrength, setPasswordStrength] = useState<{
     strength: string;
     color: string;
@@ -18,6 +22,14 @@ export default function ResetPassword() {
     strength: "",
     color: "",
   });
+
+  useEffect(() => {
+    // Si hay un token en la URL, vamos directo al paso de cambiar contraseña
+    const token = searchParams.get('token');
+    if (token) {
+      setStep('password');
+    }
+  }, [searchParams]);
 
   const validatePassword = (password: string) => {
     let strength = 0;
@@ -51,7 +63,35 @@ export default function ResetPassword() {
     setPasswordStrength(validatePassword(newPassword));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    
+    if (!email) {
+      setError("Por favor, introduce tu dirección de correo electrónico");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/recuperar-password`,
+      });
+      
+      if (error) throw error;
+      
+      setSuccess("Te hemos enviado un correo con instrucciones para restablecer tu contraseña. Por favor, revisa tu bandeja de entrada.");
+    } catch (err: any) {
+      console.error("Error al solicitar restablecimiento:", err.message);
+      setError("No se pudo enviar el correo de restablecimiento. Verifica tu dirección de correo e inténtalo de nuevo.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -114,7 +154,9 @@ export default function ResetPassword() {
           Restablecer contraseña
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Introduce tu nueva contraseña
+          {step === 'email' 
+            ? "Introduce tu correo electrónico para recibir instrucciones" 
+            : "Introduce tu nueva contraseña"}
         </p>
       </div>
 
@@ -125,76 +167,117 @@ export default function ResetPassword() {
               {error}
             </div>
           )}
+          
+          {success && (
+            <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+              {success}
+            </div>
+          )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Nueva contraseña
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  value={password}
-                  onChange={handlePasswordChange}
-                />
-              </div>
-              {passwordStrength.strength && (
-                <p
-                  className="mt-2 text-sm"
-                  style={{ color: passwordStrength.color }}
+          {step === 'email' ? (
+            <form className="space-y-6" onSubmit={handleRequestReset}>
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700"
                 >
-                  Fortaleza de la contraseña: {passwordStrength.strength}
-                </p>
-              )}
-              <div className="mt-1 text-xs text-gray-500">
-                <p>La contraseña debe contener al menos:</p>
-                <ul className="list-disc pl-5 mt-1">
-                  <li>8 caracteres</li>
-                  <li>Una letra mayúscula</li>
-                  <li>Una letra minúscula</li>
-                  <li>Un número</li>
-                  <li>Un carácter especial</li>
-                </ul>
+                  Correo electrónico
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Confirmar nueva contraseña
-              </label>
-              <div className="mt-1">
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
+              <div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {isLoading ? "Enviando..." : "Enviar instrucciones"}
+                </button>
               </div>
-            </div>
+            </form>
+          ) : (
+            <form className="space-y-6" onSubmit={handleUpdatePassword}>
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Nueva contraseña
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    value={password}
+                    onChange={handlePasswordChange}
+                  />
+                </div>
+                {passwordStrength.strength && (
+                  <p
+                    className="mt-2 text-sm"
+                    style={{ color: passwordStrength.color }}
+                  >
+                    Fortaleza de la contraseña: {passwordStrength.strength}
+                  </p>
+                )}
+                <div className="mt-1 text-xs text-gray-500">
+                  <p>La contraseña debe contener al menos:</p>
+                  <ul className="list-disc pl-5 mt-1">
+                    <li>8 caracteres</li>
+                    <li>Una letra mayúscula</li>
+                    <li>Una letra minúscula</li>
+                    <li>Un número</li>
+                    <li>Un carácter especial</li>
+                  </ul>
+                </div>
+              </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {isLoading ? "Procesando..." : "Actualizar contraseña"}
-              </button>
-            </div>
-          </form>
+              <div>
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Confirmar nueva contraseña
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {isLoading ? "Procesando..." : "Actualizar contraseña"}
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="mt-6">
             <div className="relative">
