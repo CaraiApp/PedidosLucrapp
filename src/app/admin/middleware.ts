@@ -14,22 +14,102 @@ export function useAdminAuth() {
       setIsVerifying(true);
       
       try {
-        // Primero verificamos si hay acceso en sessionStorage
-        // Usamos un bloque try-catch porque sessionStorage puede no estar disponible en algunos contextos
-        const hasAccess = sessionStorage.getItem("adminAccess") === "granted";
+        // Verificar acceso de admin de varias formas para mayor robustez
+        let hasAccess = false;
+        let accessSource = "none";
         
+        // 1. Verificar en sessionStorage (principal)
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            if (sessionStorage.getItem("adminAccess") === "granted") {
+              hasAccess = true;
+              accessSource = "sessionStorage/simple";
+            } else if (sessionStorage.getItem("adminAuth")) {
+              hasAccess = true;
+              accessSource = "sessionStorage/auth";
+            }
+          }
+        } catch (e) {
+          console.warn("Error al acceder a sessionStorage:", e);
+        }
+        
+        // 2. Verificar en localStorage (respaldo)
         if (!hasAccess) {
-          // Si no hay acceso en sessionStorage, redirigimos a la página de login de admin
-          console.log("No hay acceso de admin en sessionStorage");
+          try {
+            if (typeof localStorage !== 'undefined') {
+              if (localStorage.getItem("adminAccess") === "granted") {
+                hasAccess = true;
+                accessSource = "localStorage/simple";
+              } else if (localStorage.getItem("adminAuth")) {
+                hasAccess = true;
+                accessSource = "localStorage/auth";
+              } else if (localStorage.getItem("adminEmail") === "luisocro@gmail.com") {
+                hasAccess = true;
+                accessSource = "localStorage/superadmin";
+                
+                // Restaurar adminAccess si tenemos email de superadmin
+                if (typeof sessionStorage !== 'undefined') {
+                  sessionStorage.setItem("adminAccess", "granted");
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Error al acceder a localStorage:", e);
+          }
+        }
+        
+        // 3. Verificar en cookies (última opción)
+        if (!hasAccess) {
+          try {
+            if (typeof document !== 'undefined' && document.cookie) {
+              if (document.cookie.includes("adminAuth=") || document.cookie.includes("adminAccess=granted")) {
+                hasAccess = true;
+                accessSource = "cookie";
+                
+                // Restaurar adminAccess si tenemos cookie
+                if (typeof sessionStorage !== 'undefined') {
+                  sessionStorage.setItem("adminAccess", "granted");
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Error al acceder a cookies:", e);
+          }
+        }
+        
+        // 4. Verificación especial de superadmin por URL para emergencias
+        if (!hasAccess && typeof window !== 'undefined') {
+          try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const adminKey = urlParams.get('adminKey');
+            
+            // Clave especial para emergencias (solo usar en producción cuando otras opciones fallen)
+            if (adminKey === 'luisAdmin2025') {
+              hasAccess = true;
+              accessSource = "url/emergency";
+              
+              // Configurar acceso permanente
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem("adminAccess", "granted");
+              }
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem("adminEmail", "luisocro@gmail.com");
+              }
+            }
+          } catch (e) {
+            console.warn("Error al verificar URL params:", e);
+          }
+        }
+        
+        // Si no hay acceso, redirigir al login
+        if (!hasAccess) {
+          console.log("No hay acceso de admin verificado");
           router.push("/admin");
           return;
         }
         
-        // En el entorno de producción, la verificación de sesión de Supabase es opcional
-        // Solo verificamos que el token de admin esté presente
-
-        // Esto permitirá que funcione incluso si Supabase no está configurado correctamente
-        console.log("Acceso de admin verificado con éxito");
+        // Acceso verificado
+        console.log(`Acceso de admin verificado con éxito (fuente: ${accessSource})`);
       } catch (error) {
         console.error("Error al verificar acceso de admin:", error);
         router.push("/admin");

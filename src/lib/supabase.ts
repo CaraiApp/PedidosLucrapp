@@ -4,7 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Opciones mejoradas para persistencia de sesión
+const supabaseOptions = {
+  auth: {
+    persistSession: true, // Mantener sesión almacenada
+    autoRefreshToken: true, // Refrescar token automáticamente
+    detectSessionInUrl: true, // Detectar tokens en URL para soportar auth callbacks
+    storageKey: 'lucrapp-supabase-auth', // Clave personalizada para localStorage
+  },
+};
+
+// Cliente de Supabase mejorado para producción
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, supabaseOptions);
 
 // Funciones de utilidad para trabajar con Supabase
 
