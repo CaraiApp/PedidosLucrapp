@@ -41,10 +41,60 @@ export default function PerfilUsuario() {
 
       if (userError) throw userError;
       
-      // Ahora, si el usuario tiene una membresía activa, cargamos esos datos
+      console.log("Datos usuario:", userData);
+      
+      // Ahora, verificamos la membresía activa del usuario mediante consulta directa
+      // En lugar de confiar en el ID de membresía almacenado, hacemos una consulta por membresias activas
       let membresia = null;
-      if (userData.membresia_activa_id) {
+      try {
+        const { data: membresiaData, error: membresiaError } = await supabase
+          .from("membresias_usuarios")
+          .select("*, tipo_membresia:membresia_tipos(*)")
+          .eq("usuario_id", userId)
+          .eq("estado", "activa")
+          .order('fecha_inicio', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (!membresiaError && membresiaData) {
+          console.log("Membresía activa encontrada:", membresiaData);
+          membresia = membresiaData;
+          
+          // Verificamos si el ID de membresía activa en el usuario coincide con este
+          if (userData.membresia_activa_id !== membresiaData.id) {
+            console.log("Actualizando ID de membresía activa en usuario:", membresiaData.id);
+            
+            // Actualizar el ID de membresía activa en el usuario
+            await supabase
+              .from("usuarios")
+              .update({ membresia_activa_id: membresiaData.id })
+              .eq("id", userId);
+          }
+        } else if (membresiaError && membresiaError.code !== 'PGRST116') {
+          // PGRST116 es el código de error cuando no se encuentra ningún registro
+          console.warn("Error al buscar membresía activa:", membresiaError);
+        } else {
+          console.log("Usuario sin membresía activa");
+          
+          // Si el usuario tiene un ID de membresía activa pero no encontramos membresía activa
+          // debemos limpiarlo para mantener la consistencia
+          if (userData.membresia_activa_id) {
+            console.log("Limpiando ID de membresía activa obsoleto");
+            await supabase
+              .from("usuarios")
+              .update({ membresia_activa_id: null })
+              .eq("id", userId);
+          }
+        }
+      } catch (membresiaErr) {
+        console.warn("Error al cargar datos de membresía:", membresiaErr);
+        // Continuamos aunque no se pueda cargar la membresía
+      }
+      
+      // Si aún así no tenemos membresía pero hay un ID, intentamos usarlo como fallback
+      if (!membresia && userData.membresia_activa_id) {
         try {
+          console.log("Intentando cargar membresía por ID:", userData.membresia_activa_id);
           const { data: membresiaData, error: membresiaError } = await supabase
             .from("membresias_usuarios")
             .select("*, tipo_membresia:membresia_tipos(*)")
@@ -52,11 +102,11 @@ export default function PerfilUsuario() {
             .single();
             
           if (!membresiaError && membresiaData) {
+            console.log("Membresía encontrada por ID:", membresiaData);
             membresia = membresiaData;
           }
         } catch (membresiaErr) {
-          console.warn("Error al cargar datos de membresía:", membresiaErr);
-          // Continuamos aunque no se pueda cargar la membresía
+          console.warn("Error al cargar membresía por ID:", membresiaErr);
         }
       }
       
