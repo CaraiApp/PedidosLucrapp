@@ -352,7 +352,7 @@ function EscanerFactura() {
       // Preparar datos con un identificador adicional para asegurar la autenticación
       const datosCompletos = {
         ...datosParaGuardar,
-        userIdentifier: sessionData.session.user.id  // Incluir ID del usuario para verificación adicional
+        userIdentifier: sessionData?.session?.user?.id || ''  // Incluir ID del usuario para verificación adicional
       };
       
       // Realizar petición con múltiples opciones de autenticación
@@ -361,7 +361,7 @@ function EscanerFactura() {
         headers: {
           "Content-Type": "application/json",
           "Authorization": currentSession?.access_token ? `Bearer ${currentSession.access_token}` : "",
-          "x-user-id": sessionData.session.user.id  // Header alternativo para identificación
+          "x-user-id": sessionData?.session?.user?.id || ""  // Header alternativo para identificación
         },
         credentials: 'include',
         body: JSON.stringify(datosCompletos),
