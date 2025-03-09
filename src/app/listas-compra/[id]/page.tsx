@@ -239,21 +239,55 @@ export default function DetalleListaCompraPage() {
     }
   };
 
+  // Obtener la abreviatura de la unidad
+  const obtenerAbreviaturaUnidad = (unidad: string): string => {
+    const abreviaturas: {[key: string]: string} = {
+      'Kilogramos': 'Kg',
+      'Gramos': 'g',
+      'Unidades': 'uds',
+      'Litros': 'L',
+      'Mililitros': 'ml',
+      'Cajas': 'caj',
+      'Latas': 'latas',
+      'Botellas': 'bot',
+      'Paquetes': 'paq',
+      'Piezas': 'pzs',
+      'Docenas': 'doc'
+    };
+    
+    return abreviaturas[unidad] || unidad;
+  };
+
   // Generar mensajes para WhatsApp y Email
   const generarMensajeWhatsApp = (proveedor: ItemsPorProveedor) => {
     if (!proveedor.telefono) return null;
     
     const nombreRemitente = userData?.nombre || userData?.empresa || "Cliente";
-    let mensaje = `Pedido de ${nombreRemitente} para ${proveedor.nombre}:%0A%0A`;
-    
-    proveedor.articulos.forEach(item => {
-      mensaje += `${item.articulo.nombre}: ${item.cantidad} ${item.unidad}%0A`;
+    const fecha = new Date().toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
     });
     
-    mensaje += `%0ATotal aproximado: ${new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency: "EUR",
-    }).format(proveedor.total)}`;
+    let mensaje = `*Pedido de ${nombreRemitente}*%0A`;
+    mensaje += `*Fecha:* ${fecha}%0A`;
+    if (lista.nombre_lista || lista.nombre || lista.title) {
+      mensaje += `*Referencia:* ${lista.nombre_lista || lista.nombre || lista.title}%0A`;
+    }
+    mensaje += `%0A*Artículos:*%0A`;
+    
+    proveedor.articulos.forEach(item => {
+      // Usar abreviatura de la unidad
+      const unidadAbreviada = obtenerAbreviaturaUnidad(item.unidad);
+      mensaje += `• ${item.articulo.nombre}: ${item.cantidad} ${unidadAbreviada}%0A`;
+    });
+    
+    // Añadir notas si existen
+    if (lista.notas) {
+      mensaje += `%0A*Notas:*%0A${lista.notas.replace(/\n/g, '%0A')}%0A`;
+    }
+    
+    mensaje += `%0AGracias por su atención.`;
     
     return `https://wa.me/${proveedor.telefono.replace(/\D/g, '')}?text=${mensaje}`;
   };
@@ -262,18 +296,34 @@ export default function DetalleListaCompraPage() {
     if (!proveedor.email) return null;
     
     const nombreRemitente = userData?.nombre || userData?.empresa || "Cliente";
-    const asunto = `Pedido de ${nombreRemitente}`;
-    
-    let mensaje = `Pedido para ${proveedor.nombre}:\n\n`;
-    
-    proveedor.articulos.forEach(item => {
-      mensaje += `${item.articulo.nombre}: ${item.cantidad} ${item.unidad}\n`;
+    const asunto = `Pedido de ${nombreRemitente} - ${lista.nombre_lista || lista.nombre || lista.title || "Nueva orden"}`;
+    const fecha = new Date().toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
     });
     
-    mensaje += `\nTotal aproximado: ${new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency: "EUR",
-    }).format(proveedor.total)}`;
+    let mensaje = `Pedido de ${nombreRemitente}\n`;
+    mensaje += `Fecha: ${fecha}\n`;
+    if (lista.nombre_lista || lista.nombre || lista.title) {
+      mensaje += `Referencia: ${lista.nombre_lista || lista.nombre || lista.title}\n`;
+    }
+    mensaje += `\nEstimado ${proveedor.nombre},\n\n`;
+    mensaje += `Le envío el siguiente pedido:\n\n`;
+    
+    proveedor.articulos.forEach(item => {
+      // Usar abreviatura de la unidad también en el email
+      const unidadAbreviada = obtenerAbreviaturaUnidad(item.unidad);
+      mensaje += `• ${item.articulo.nombre}: ${item.cantidad} ${unidadAbreviada}\n`;
+    });
+    
+    // Añadir notas si existen
+    if (lista.notas) {
+      mensaje += `\nNotas adicionales:\n${lista.notas}\n`;
+    }
+    
+    mensaje += `\nGracias por su atención.\n`;
+    mensaje += `${nombreRemitente}`;
     
     return `mailto:${proveedor.email}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(mensaje)}`;
   };
