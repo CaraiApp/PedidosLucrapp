@@ -75,27 +75,14 @@ function EscanerFactura() {
       try {
         setVerificandoAcceso(true);
         
-        // 1. Verificar acceso a funciones de IA - Añadir parámetro bypass en desarrollo
-        // Este parámetro permite saltarse todas las verificaciones
-        let url = "/api/verify-ai-access";
-        
-        // Para entornos de desarrollo, podemos añadir el bypass
-        if (process.env.NODE_ENV !== 'production') {
-          url += "?bypass=development";
-        }
-        
-        console.log("Verificando acceso a IA:", url);
-        const responseAcceso = await fetch(url);
+        // 1. Verificar acceso a funciones de IA
+        const responseAcceso = await fetch("/api/verify-ai-access");
         const datosAcceso = await responseAcceso.json();
-        
-        console.log("Respuesta de verificación:", datosAcceso);
         
         if (datosAcceso.success && datosAcceso.tieneAcceso) {
           setTieneAccesoIA(true);
-          console.log("Acceso a IA concedido");
         } else {
           // Manejar el caso sin acceso a IA
-          console.log("Acceso a IA denegado:", datosAcceso);
           setTieneAccesoIA(false);
           setError(datosAcceso.error || "Tu plan actual no incluye funciones de IA. Actualiza a un plan con IA para usar esta característica.");
         }
