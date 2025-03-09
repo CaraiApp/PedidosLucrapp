@@ -343,24 +343,28 @@ function EscanerFactura() {
         return;
       }
 
-      // Si hay sesión, enviar a la API para guardar con el token
+      // Si hay sesión, enviar a la API para guardar con el token y ID específico
       console.log("Enviando datos a la API para guardar");
       
       // Obtener token de acceso para incluirlo en el header
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       
-      if (!currentSession || !currentSession.access_token) {
-        throw new Error("No se pudo obtener la sesión para guardar los datos. Por favor, intenta iniciar sesión nuevamente.");
-      }
+      // Preparar datos con un identificador adicional para asegurar la autenticación
+      const datosCompletos = {
+        ...datosParaGuardar,
+        userIdentifier: sessionData.session.user.id  // Incluir ID del usuario para verificación adicional
+      };
       
+      // Realizar petición con múltiples opciones de autenticación
       const response = await fetch("/api/save-scanned-invoice", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${currentSession.access_token}`
+          "Authorization": currentSession?.access_token ? `Bearer ${currentSession.access_token}` : "",
+          "x-user-id": sessionData.session.user.id  // Header alternativo para identificación
         },
         credentials: 'include',
-        body: JSON.stringify(datosParaGuardar),
+        body: JSON.stringify(datosCompletos),
       });
 
       const data = await response.json();
