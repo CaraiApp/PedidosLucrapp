@@ -12,17 +12,39 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-// Importación condicional de CryptoJS para evitar errores durante la compilación estática
+// Definimos una variable para CryptoJS
 let CryptoJS: any = null;
 
-// Solo cargar CryptoJS en el cliente
-if (typeof window !== 'undefined') {
-  import('crypto-js').then((module) => {
-    CryptoJS = module.default;
-  }).catch(err => {
-    console.error("Error cargando CryptoJS:", err);
-  });
-}
+// Esta función carga de manera segura CryptoJS
+const loadCryptoJS = async (): Promise<any> => {
+  if (CryptoJS) return CryptoJS;
+  
+  if (typeof window !== 'undefined') {
+    try {
+      // Importar los módulos específicos que necesitamos
+      const AES = await import('crypto-js/aes');
+      const cryptoCore = await import('crypto-js/core');
+      const MD5 = await import('crypto-js/md5');
+      const enc = await import('crypto-js/enc-utf8');
+      
+      // Crear un objeto combinado
+      CryptoJS = {
+        AES: AES.default,
+        lib: cryptoCore.default.lib,
+        MD5: MD5.default,
+        enc: {
+          Utf8: enc.default
+        }
+      };
+      
+      return CryptoJS;
+    } catch (err) {
+      console.error("Error cargando CryptoJS:", err);
+      return null;
+    }
+  }
+  return null;
+};
 
 // Clave secreta para cifrar/descifrar el token
 const SECRET_KEY = "lucrapp-admin-secret-key-2025";
@@ -66,19 +88,21 @@ export function useAdminAuth() {
 }
 
 // Función para cifrar datos
-const encryptData = (data: AdminData): string => {
-  if (!CryptoJS) {
+const encryptData = async (data: AdminData): Promise<string> => {
+  const crypto = await loadCryptoJS();
+  if (!crypto) {
     console.warn("CryptoJS no está disponible todavía para cifrar");
     // Almacenamiento temporal para desarrollo
     return JSON.stringify(data);
   }
-  return CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
+  return crypto.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
 };
 
 // Función para descifrar datos
-const decryptData = (ciphertext: string): AdminData | null => {
+const decryptData = async (ciphertext: string): Promise<AdminData | null> => {
   try {
-    if (!CryptoJS) {
+    const crypto = await loadCryptoJS();
+    if (!crypto) {
       console.warn("CryptoJS no está disponible todavía para descifrar");
       // Si está en formato JSON simple, intentar parsear directamente
       if (ciphertext.startsWith('{') && ciphertext.endsWith('}')) {
@@ -87,8 +111,8 @@ const decryptData = (ciphertext: string): AdminData | null => {
       return null;
     }
     
-    const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
-    const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+    const bytes = crypto.AES.decrypt(ciphertext, SECRET_KEY);
+    const decryptedData = JSON.parse(bytes.toString(crypto.enc.Utf8));
     return decryptedData as AdminData;
   } catch (error) {
     console.error("Error al descifrar datos del administrador", error);
@@ -121,7 +145,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         // Primero verificamos si hay una sesión válida en sessionStorage
         const adminData = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem("adminAuth") : null;
         if (adminData) {
-          const decryptedData = decryptData(adminData);
+          const decryptedData = await decryptData(adminData);
           if (decryptedData) {
             // Verificar si la sesión ha expirado
             const now = Date.now();
@@ -136,7 +160,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
                 lastAccess: now,
                 expiresAt: newExpiresAt
               };
-              sessionStorage.setItem("adminAuth", encryptData(newAdminData));
+              sessionStorage.setItem("adminAuth", await encryptData(newAdminData));
               setIsLoading(false);
               return;
             } else {
@@ -166,7 +190,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
                 expiresAt: expiresAt
               };
               
-              sessionStorage.setItem("adminAuth", encryptData(adminData));
+              sessionStorage.setItem("adminAuth", await encryptData(adminData));
               setIsAuthenticated(true);
               setIsLoading(false);
               return;
@@ -194,6 +218,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     
     try {
+      // Cargar CryptoJS primero
+      const crypto = await loadCryptoJS();
+      if (!crypto) {
+        console.error("No se pudo cargar CryptoJS para el login");
+        return false;
+      }
+      
       // Verificamos primero si hay una sesión de usuario en Supabase
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -217,7 +248,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           };
           
           // Guardar los datos cifrados en sessionStorage
-          sessionStorage.setItem("adminAuth", encryptData(adminData));
+          sessionStorage.setItem("adminAuth", await encryptData(adminData));
           setIsAuthenticated(true);
           return true;
         }
@@ -244,13 +275,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         };
         
         // Guardar los datos cifrados en sessionStorage
-        sessionStorage.setItem("adminAuth", encryptData(adminData));
+        sessionStorage.setItem("adminAuth", await encryptData(adminData));
         setIsAuthenticated(true);
         return true;
       }
       
       // Calcular hash de la contraseña ingresada
-      const inputPasswordHash = CryptoJS.MD5(password).toString();
+      const inputPasswordHash = crypto.MD5(password).toString();
       
       if (validPasswordHashes.includes(inputPasswordHash)) {
         // Contraseña correcta, crear sesión
@@ -264,7 +295,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         };
         
         // Guardar los datos cifrados en sessionStorage
-        sessionStorage.setItem("adminAuth", encryptData(adminData));
+        sessionStorage.setItem("adminAuth", await encryptData(adminData));
         setIsAuthenticated(true);
         return true;
       } else {
@@ -332,8 +363,10 @@ export function withAdminAuth<T extends object>(Component: React.ComponentType<T
 }
 
 // Función para verificar seguridad adicional (anti-CSRF)
-export function generateCSRFToken(): string {
-  if (!CryptoJS) {
+export async function generateCSRFToken(): Promise<string> {
+  const crypto = await loadCryptoJS();
+  
+  if (!crypto) {
     // Fallback simple para cuando CryptoJS no está disponible
     const randomToken = Math.random().toString(36).substring(2, 15) + 
                         Math.random().toString(36).substring(2, 15);
@@ -343,7 +376,7 @@ export function generateCSRFToken(): string {
     return randomToken;
   }
   
-  const token = CryptoJS.lib.WordArray.random(16).toString();
+  const token = crypto.lib.WordArray.random(16).toString();
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.setItem("adminCsrfToken", token);
   }

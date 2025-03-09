@@ -27,29 +27,50 @@ export default function SeguridadAdmin() {
   const [passwordActual, setPasswordActual] = useState<string>("");
 
   useEffect(() => {
-    // Generar un nuevo token CSRF
-    const token = generateCSRFToken();
-    setCurrentCSRFToken(token);
-    
-    // Obtener información de la sesión actual
-    const adminDataStr = sessionStorage.getItem("adminAuth");
-    if (adminDataStr) {
+    const initializeSecurity = async () => {
       try {
-        const bytes = CryptoJS.AES.decrypt(adminDataStr, "lucrapp-admin-secret-key-2025");
-        const adminData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+        // Generar un nuevo token CSRF (ahora es asíncrono)
+        const token = await generateCSRFToken();
+        setCurrentCSRFToken(token);
         
-        if (adminData.lastAccess) {
-          const fecha = new Date(adminData.lastAccess);
-          setUltimoAcceso(fecha.toLocaleString('es-ES'));
+        // Cargar CryptoJS de forma segura
+        const crypto = await import('crypto-js');
+        
+        // Obtener información de la sesión actual
+        const adminDataStr = sessionStorage.getItem("adminAuth");
+        if (adminDataStr) {
+          try {
+            // Intentar diferentes enfoques de descifrado
+            let adminData;
+            
+            // Si parece ser JSON plano (para desarrollo)
+            if (adminDataStr.startsWith('{') && adminDataStr.endsWith('}')) {
+              adminData = JSON.parse(adminDataStr);
+            } else {
+              // Descifrar usando CryptoJS
+              const bytes = crypto.AES.decrypt(adminDataStr, "lucrapp-admin-secret-key-2025");
+              adminData = JSON.parse(bytes.toString(crypto.enc.Utf8));
+            }
+            
+            if (adminData.lastAccess) {
+              const fecha = new Date(adminData.lastAccess);
+              setUltimoAcceso(fecha.toLocaleString('es-ES'));
+            }
+          } catch (error) {
+            console.error("Error al descifrar datos de sesión", error);
+          }
         }
         
         // Obtener intentos fallidos (podría guardarse en localStorage)
         const intentos = localStorage.getItem("adminFailedAttempts") || "0";
         setIntentosFallidos(parseInt(intentos));
+        
       } catch (error) {
-        console.error("Error al obtener datos de sesión", error);
+        console.error("Error al inicializar seguridad:", error);
       }
-    }
+    };
+    
+    initializeSecurity();
   }, []);
 
   const handleCambiarPassword = async (e: React.FormEvent) => {
@@ -72,32 +93,36 @@ export default function SeguridadAdmin() {
       return;
     }
     
-    // Verificar la contraseña actual (en producción, esto debería validarse contra la base de datos)
-    const actualPasswordHash = CryptoJS.MD5(passwordActual).toString();
-    const validPasswordHashes = [
-      "f7f4d7eb19722cebd6c5f9fae94ddb65", // Hash de "Global01"
-      "46e44aa0f7fe67b53554a9fc2c76fbcc"  // Hash de "Global01."
-    ];
-    
-    // También aceptamos la contraseña en texto plano para la demo
-    if (passwordActual === "Global01") {
-      // Contraseña correcta
-    } else if (!validPasswordHashes.includes(actualPasswordHash)) {
-      setMensaje({
-        texto: "La contraseña actual no es correcta",
-        tipo: "error"
-      });
-      return;
-    }
-    
     setLoading(true);
     
     try {
+      // Cargar CryptoJS de forma segura
+      const crypto = await import('crypto-js');
+      
+      // Verificar la contraseña actual (en producción, esto debería validarse contra la base de datos)
+      const actualPasswordHash = crypto.MD5(passwordActual).toString();
+      const validPasswordHashes = [
+        "f7f4d7eb19722cebd6c5f9fae94ddb65", // Hash de "Global01"
+        "46e44aa0f7fe67b53554a9fc2c76fbcc"  // Hash de "Global01."
+      ];
+      
+      // También aceptamos la contraseña en texto plano para la demo
+      if (passwordActual === "Global01") {
+        // Contraseña correcta
+      } else if (!validPasswordHashes.includes(actualPasswordHash)) {
+        setMensaje({
+          texto: "La contraseña actual no es correcta",
+          tipo: "error"
+        });
+        setLoading(false);
+        return;
+      }
+      
       // En un entorno real, aquí se actualizaría la contraseña en la base de datos
       // Para esta demo, vamos a simular un cambio exitoso
       
       // Crear hash de la nueva contraseña para mostrar (en producción, se guardaría en la BD)
-      const nuevaPasswordHash = CryptoJS.MD5(nuevaPassword).toString();
+      const nuevaPasswordHash = crypto.MD5(nuevaPassword).toString();
       
       // Mostrar mensaje de éxito con el hash para propósitos de debug
       setMensaje({
