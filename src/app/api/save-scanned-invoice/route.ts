@@ -1,19 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from "@/lib/supabase";
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar sesión del usuario
-    const { data: sessionData } = await supabase.auth.getSession();
+    // Verificar si se proporciona token de autorización en la solicitud
+    const authHeader = request.headers.get('authorization');
+    let token = null;
     
-    if (!sessionData.session) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+    
+    // Crear un cliente de Supabase con cookies y/o token para el servidor
+    const cookieStore = cookies();
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false
+        },
+        global: {
+          headers: {
+            cookie: cookieStore.toString(),
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        }
+      }
+    );
+    
+    // Verificar sesión del usuario (con posible token extra)
+    let session;
+    let userId;
+    
+    if (token) {
+      // Intentar obtener usuario del token
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data?.user) {
+        userId = data.user.id;
+        session = { user: data.user };
+      }
+    } 
+    
+    if (!userId) {
+      // Intentar obtener sesión normal
+      const { data, error } = await supabase.auth.getSession();
+      if (data?.session) {
+        session = data.session;
+        userId = session.user.id;
+      }
+    }
+    
+    // Verificar que tenemos un usuario
+    if (!userId) {
       return NextResponse.json(
-        { error: "No autorizado" },
+        { error: "No autorizado. Por favor, inicia sesión para guardar datos." },
         { status: 401 }
       );
     }
-
-    const userId = sessionData.session.user.id;
 
     // Obtener los datos enviados
     const requestData = await request.json();
