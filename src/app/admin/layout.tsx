@@ -2,6 +2,7 @@
 'use client';
 
 import { AdminAuthProvider } from "./auth";
+import { AdminMiddleware } from "./middleware";
 
 // Completamente client-side, sin SSR
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,8 @@ export default function AdminLayout({
   return (
     <div className="admin-layout">
       <AdminAuthProvider>
+        {/* Middleware que protege todas las rutas de admin */}
+        <AdminMiddleware />
         {children}
       </AdminAuthProvider>
     </div>

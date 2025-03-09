@@ -2,18 +2,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export function useAdminAuth() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isVerifying, setIsVerifying] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const checkAdminAccess = async () => {
       setIsVerifying(true);
       
       try {
+        // Si estamos en la página de login del admin, no verificar
+        if (pathname === '/admin' || pathname === '/admin/') {
+          setIsVerifying(false);
+          return;
+        }
+        
         // Verificar acceso de admin de varias formas para mayor robustez
         let hasAccess = false;
         let accessSource = "none";
@@ -77,7 +85,28 @@ export function useAdminAuth() {
           }
         }
         
-        // 4. Verificación especial de superadmin por URL para emergencias
+        // 4. Verificación de superadmin por sesión de Supabase
+        if (!hasAccess) {
+          try {
+            const { data } = await supabase.auth.getSession();
+            if (data?.session?.user?.email === "luisocro@gmail.com") {
+              hasAccess = true;
+              accessSource = "supabase/superadmin";
+              
+              // Establecer acceso en almacenamiento para futuras verificaciones
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem("adminAccess", "granted");
+              }
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem("adminEmail", "luisocro@gmail.com");
+              }
+            }
+          } catch (supabaseError) {
+            console.warn("Error al verificar sesión de Supabase:", supabaseError);
+          }
+        }
+        
+        // 5. Verificación especial de superadmin por URL para emergencias
         if (!hasAccess && typeof window !== 'undefined') {
           try {
             const urlParams = new URLSearchParams(window.location.search);
@@ -95,6 +124,9 @@ export function useAdminAuth() {
               if (typeof localStorage !== 'undefined') {
                 localStorage.setItem("adminEmail", "luisocro@gmail.com");
               }
+              
+              // Establecer cookie HTTP
+              document.cookie = "adminAccess=granted; path=/; max-age=86400; secure; samesite=strict";
             }
           } catch (e) {
             console.warn("Error al verificar URL params:", e);
@@ -103,25 +135,50 @@ export function useAdminAuth() {
         
         // Si no hay acceso, redirigir al login
         if (!hasAccess) {
-          console.log("No hay acceso de admin verificado");
-          router.push("/admin");
+          console.log("No hay acceso de admin verificado, redirigiendo a login");
+          setIsAuthenticated(false);
+          router.replace("/admin");
           return;
         }
         
         // Acceso verificado
         console.log(`Acceso de admin verificado con éxito (fuente: ${accessSource})`);
+        setIsAuthenticated(true);
       } catch (error) {
         console.error("Error al verificar acceso de admin:", error);
-        router.push("/admin");
+        setIsAuthenticated(false);
+        router.replace("/admin");
       } finally {
         setIsVerifying(false);
       }
     };
 
     checkAdminAccess();
-  }, [router]);
+  }, [router, pathname]);
 
-  return { isVerifying };
+  return { isVerifying, isAuthenticated };
+}
+
+// Crear un componente middleware real para proteger todas las rutas del admin
+export function AdminMiddleware() {
+  const { isVerifying, isAuthenticated } = useAdminAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // Si estamos en la página de login del admin, no verificar
+    if (pathname === '/admin' || pathname === '/admin/') {
+      return;
+    }
+
+    // Cuando termine la verificación, si no está autenticado, redirigir
+    if (!isVerifying && !isAuthenticated) {
+      console.log('AdminMiddleware: Redirigiendo a /admin por falta de autenticación');
+      router.replace('/admin');
+    }
+  }, [isVerifying, isAuthenticated, router, pathname]);
+
+  return null;
 }
 
 export default useAdminAuth;

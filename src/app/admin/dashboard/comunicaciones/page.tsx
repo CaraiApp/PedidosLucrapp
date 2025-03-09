@@ -20,6 +20,7 @@ export default function Comunicaciones() {
   const [asunto, setAsunto] = useState("");
   const [contenido, setContenido] = useState("");
   const [filtroTipoMembresia, setFiltroTipoMembresia] = useState("todos");
+  const [tiposMembresiaDisponibles, setTiposMembresiaDisponibles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
@@ -207,29 +208,100 @@ export default function Comunicaciones() {
     try {
       setLoading(true);
       
-      // Cargar usuarios con información de membresía
-      const { data, error } = await supabase
+      // Log para depuración
+      console.log("Cargando usuarios con sus membresías...");
+      
+      // Cargar usuarios con información de membresía usando una consulta más directa
+      // Usamos membresia_activa_id y luego cargamos los detalles en una consulta aparte
+      const { data: usuarios, error: usuariosError } = await supabase
         .from("usuarios")
         .select(`
           *,
-          membresia_activa:membresias_usuarios(*, tipo_membresia:membresia_tipos(*))
+          membresia_activa_id
         `)
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
+      if (usuariosError) {
+        console.error("Error al cargar usuarios:", usuariosError);
+        throw usuariosError;
+      }
       
-      // Procesar datos
-      const usuariosProcesados = data.map(usuario => ({
-        ...usuario,
-        membresia_activa: usuario.membresia_activa?.[0] || null
-      }));
+      console.log("Usuarios cargados desde BD:", usuarios?.length || 0);
       
+      // Array para almacenar los usuarios procesados
+      const usuariosProcesados = [...usuarios];
+      
+      // Obtener todas las membresías activas de una vez (más eficiente)
+      if (usuarios && usuarios.length > 0) {
+        // Filtrar solo usuarios con membresía activa
+        const usuariosConMembresia = usuarios.filter(u => u.membresia_activa_id);
+        const membresiaIds = usuariosConMembresia.map(u => u.membresia_activa_id).filter(Boolean);
+        
+        if (membresiaIds.length > 0) {
+          // Cargar todas las membresías en una sola consulta
+          const { data: membresias, error: membresiasError } = await supabase
+            .from("membresias_usuarios")
+            .select(`
+              *,
+              tipo_membresia:membresia_tipos(*)
+            `)
+            .in("id", membresiaIds);
+          
+          if (membresiasError) {
+            console.error("Error al cargar membresías:", membresiasError);
+          } else if (membresias) {
+            console.log("Membresías cargadas:", membresias.length);
+            
+            // Crear un mapa de membresías por ID para rápido acceso
+            const membresiasMap = new Map();
+            membresias.forEach(membresia => {
+              membresiasMap.set(membresia.id, membresia);
+            });
+            
+            // Asignar membresías a los usuarios correspondientes
+            usuariosProcesados.forEach((usuario, index) => {
+              if (usuario.membresia_activa_id) {
+                const membresia = membresiasMap.get(usuario.membresia_activa_id);
+                if (membresia) {
+                  usuariosProcesados[index].membresia_activa = membresia;
+                  console.log(`Usuario ${usuario.email} tiene membresía: ${membresia.tipo_membresia?.nombre || 'Desconocida'}`);
+                }
+              }
+            });
+          }
+        }
+      }
+      
+      // Establecer datos de usuario procesados
       setUsuarios(usuariosProcesados);
-      console.log("Usuarios cargados:", usuariosProcesados.length);
+      console.log("Usuarios procesados:", usuariosProcesados.length);
+      
+      // Log detallado para depuración de membresías
+      const conMembresia = usuariosProcesados.filter(u => u.membresia_activa).length;
+      const sinMembresia = usuariosProcesados.length - conMembresia;
+      console.log(`Estadísticas: ${conMembresia} usuarios con membresía, ${sinMembresia} sin membresía`);
+      
+      // Cargar tipos de membresía disponibles para los filtros
+      try {
+        const { data: tiposMembresia, error: tiposError } = await supabase
+          .from("membresia_tipos")
+          .select("*")
+          .order("precio", { ascending: true });
+        
+        if (!tiposError && tiposMembresia) {
+          console.log("Tipos de membresía disponibles:", tiposMembresia.length);
+          setTiposMembresiaDisponibles(tiposMembresia);
+        } else {
+          console.error("Error al cargar tipos de membresía:", tiposError);
+        }
+      } catch (e) {
+        console.error("Error al cargar tipos de membresía:", e);
+      }
+      
     } catch (error) {
       console.error("Error al cargar usuarios:", error);
       setMensaje({
-        texto: "Error al cargar usuarios",
+        texto: "Error al cargar usuarios. Intenta recargar la página.",
         tipo: "error"
       });
     } finally {
@@ -663,10 +735,12 @@ export default function Comunicaciones() {
             >
               <option value="todos">Todos los usuarios</option>
               <option value="sin_membresia">Sin membresía activa</option>
-              {/* Aquí deberíamos agregar opciones dinámicas por cada tipo de membresía */}
-              <option value="basic">Membresía Básica</option>
-              <option value="pro">Membresía Pro</option>
-              <option value="premium">Membresía Premium</option>
+              {/* Opciones dinámicas por cada tipo de membresía */}
+              {tiposMembresiaDisponibles.map(tipo => (
+                <option key={tipo.id} value={tipo.id}>
+                  {tipo.nombre}
+                </option>
+              ))}
             </select>
           </div>
           
@@ -708,7 +782,8 @@ export default function Comunicaciones() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         usuario.membresia_activa ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {usuario.membresia_activa?.tipo_membresia?.nombre || "Sin membresía"}
+                        {usuario.membresia_activa?.tipo_membresia?.nombre || 
+                         (usuario.membresia_activa_id ? "Membresía activa" : "Sin membresía")}
                       </span>
                     </div>
                   </li>
