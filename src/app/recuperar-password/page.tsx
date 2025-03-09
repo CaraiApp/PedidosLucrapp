@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-export default function ResetPassword() {
+// Componente para manejar los parámetros de búsqueda con suspense
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<'email' | 'password'>(searchParams.has('token') ? 'password' : 'email');
@@ -301,5 +302,34 @@ export default function ResetPassword() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Componente de carga para el Suspense
+function Loading() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Restablecer contraseña
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Cargando...
+        </p>
+      </div>
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ResetPassword() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
