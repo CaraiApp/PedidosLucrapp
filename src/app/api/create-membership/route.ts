@@ -34,18 +34,40 @@ export async function POST(request: Request) {
     }
 
     // 2. Verificar si ya existe una membresía con el mismo tipo
+    // MODIFICADO: Primero desactivamos TODAS las membresías existentes
+    console.log("Desactivando todas las membresías existentes antes de crear/actualizar");
+    
+    if (existingMemberships && existingMemberships.length > 0) {
+      const allExistingIds = existingMemberships.map(m => m.id);
+      
+      const { error: deactivateError } = await supabaseAdmin
+        .from('membresias_usuarios')
+        .update({ estado: 'inactiva' })
+        .in('id', allExistingIds);
+
+      if (deactivateError) {
+        console.error('Error al desactivar membresías existentes:', deactivateError);
+        // No bloqueamos, continuamos con la operación
+      } else {
+        console.log(`Desactivadas ${allExistingIds.length} membresías existentes`);
+      }
+    }
+    
+    // Ahora creamos una nueva membresía o reactivamos una existente del mismo tipo
     const existingMembership = existingMemberships?.find(m => m.tipo_membresia_id === tipoMembresiaId);
     
     let membershipId;
 
     if (existingMembership) {
-      // 3A. Si existe, actualizarla en lugar de crear una nueva
+      // 3A. Si existe del mismo tipo, la reactivamos y actualizamos
+      console.log(`Reactivando membresía existente ${existingMembership.id} del tipo ${tipoMembresiaId}`);
+      
       const { data: updatedMembership, error: updateError } = await supabaseAdmin
         .from('membresias_usuarios')
         .update({
           fecha_inicio: fechaInicio || new Date().toISOString(),
           fecha_fin: fechaFin || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          estado: estado || 'activa'
+          estado: 'activa' // Siempre activamos, independientemente del parámetro estado
         })
         .eq('id', existingMembership.id)
         .select()
@@ -60,8 +82,11 @@ export async function POST(request: Request) {
       }
 
       membershipId = updatedMembership.id;
+      console.log(`Membresía ${membershipId} actualizada correctamente`);
     } else {
-      // 3B. Si no existe, crear una nueva
+      // 3B. Si no existe del mismo tipo, crear una nueva
+      console.log(`Creando nueva membresía de tipo ${tipoMembresiaId}`);
+      
       const { data: newMembership, error: insertError } = await supabaseAdmin
         .from('membresias_usuarios')
         .insert({
@@ -69,7 +94,7 @@ export async function POST(request: Request) {
           tipo_membresia_id: tipoMembresiaId,
           fecha_inicio: fechaInicio || new Date().toISOString(),
           fecha_fin: fechaFin || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          estado: estado || 'activa'
+          estado: 'activa' // Siempre activamos, independientemente del parámetro estado
         })
         .select()
         .single();
@@ -83,26 +108,11 @@ export async function POST(request: Request) {
       }
 
       membershipId = newMembership.id;
+      console.log(`Nueva membresía ${membershipId} creada correctamente`);
     }
 
-    // 4. Desactivar otras membresías activas (si existen)
-    if (existingMemberships && existingMemberships.length > 0) {
-      const otherActiveIds = existingMemberships
-        .filter(m => m.estado === 'activa' && m.id !== membershipId)
-        .map(m => m.id);
-
-      if (otherActiveIds.length > 0) {
-        const { error: deactivateError } = await supabaseAdmin
-          .from('membresias_usuarios')
-          .update({ estado: 'inactiva' })
-          .in('id', otherActiveIds);
-
-        if (deactivateError) {
-          console.error('Error al desactivar otras membresías:', deactivateError);
-          // No bloqueamos la operación por esto
-        }
-      }
-    }
+    // Ya se han desactivado todas las membresías anteriormente, este paso ya no es necesario
+    console.log("Todas las otras membresías ya están desactivadas");
 
     // 5. Actualizar referencia en usuario
     const { error: updateUserError } = await supabaseAdmin

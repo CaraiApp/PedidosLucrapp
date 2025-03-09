@@ -56,7 +56,7 @@ export default function MembresiaPage() {
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900">Información de Membresía</h3>
             
-            {user?.membresia_activa_id ? (
+            {user?.membresia_activa ? (
               <div className="mt-5">
                 <div className="rounded-md bg-green-50 p-4 mb-6">
                   <div className="flex">

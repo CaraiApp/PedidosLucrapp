@@ -115,24 +115,32 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Verificar que el usuario tiene un plan con acceso a IA
-    const { data: userInfo, error: userInfoError } = await supabase
-      .from("usuarios")
-      .select("membresia_activa_id")
-      .eq("id", userId)
-      .single();
+    // MODIFICADO: Verificar directamente si el usuario tiene una membresía ACTIVA con acceso a IA
+    const { data: membresiasActivas, error: membresiaError } = await supabase
+      .from("membresias_usuarios")
+      .select(`
+        id,
+        usuario_id,
+        estado,
+        tipo_membresia:membresia_tipos(*)
+      `)
+      .eq("usuario_id", userId)
+      .eq("estado", "activa")
+      .order("fecha_inicio", { ascending: false });
       
-    if (userInfoError) {
+    if (membresiaError) {
+      console.error("Error al verificar membresías activas:", membresiaError);
       return NextResponse.json(
         { 
           success: false, 
-          error: "No se pudo verificar la información de tu cuenta. Por favor, contacta con soporte."
+          error: "No se pudo verificar tu membresía. Por favor, contacta con soporte."
         },
         { status: 500 }
       );
     }
     
-    if (!userInfo || !userInfo.membresia_activa_id) {
+    // Verificar si tiene alguna membresía activa
+    if (!membresiasActivas || membresiasActivas.length === 0) {
       return NextResponse.json({
         success: false,
         error: "No tienes una membresía activa. Por favor, actualiza tu plan para acceder a esta función.",
@@ -141,34 +149,47 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // Obtener detalles de la membresía
-    const { data: membresiaData, error: membresiaError } = await supabase
-      .from("membresias_usuarios")
-      .select(`
-        id,
-        tipo_membresia:membresia_tipos(*)
-      `)
-      .eq("id", userInfo.membresia_activa_id)
-      .single();
-      
-    if (membresiaError) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: "No se pudieron verificar los detalles de tu membresía. Por favor, contacta con soporte."
-        },
-        { status: 500 }
-      );
-    }
+    // Usar la primera membresía activa (la más reciente)
+    const membresiaData = membresiasActivas[0];
     
-    if (!membresiaData) {
-      return NextResponse.json({
-        success: false,
-        error: "No se encontró información de tu membresía. Por favor, contacta con soporte.",
-        tieneAcceso: false,
-        requiereActualizacion: true
-      });
+    // Si hay múltiples membresías activas, intentamos corregir automáticamente
+    if (membresiasActivas.length > 1) {
+      console.warn(`Usuario ${userId} tiene ${membresiasActivas.length} membresías activas simultáneamente`);
+      
+      try {
+        // Mantener solo la más reciente activa
+        const idsADesactivar = membresiasActivas.slice(1).map(m => m.id);
+        
+        if (idsADesactivar.length > 0) {
+          const { error: updateError } = await supabase
+            .from("membresias_usuarios")
+            .update({ estado: "inactiva" })
+            .in("id", idsADesactivar);
+            
+          if (updateError) {
+            console.error("Error al desactivar membresías redundantes:", updateError);
+          } else {
+            console.log(`Se desactivaron ${idsADesactivar.length} membresías redundantes`);
+          }
+        }
+        
+        // Actualizar la referencia en el usuario
+        const { error: refError } = await supabase
+          .from("usuarios")
+          .update({ membresia_activa_id: membresiaData.id })
+          .eq("id", userId);
+          
+        if (refError) {
+          console.error("Error al actualizar referencia de membresía en usuario:", refError);
+        } else {
+          console.log("Referencia de membresía actualizada a:", membresiaData.id);
+        }
+      } catch (correctionError) {
+        console.error("Error al corregir membresías múltiples:", correctionError);
+      }
     }
+      
+    // Nota: el manejo de errores para membresiaError ya está arriba
     
     // Comprobar si tiene IA
     let tieneAccesoIA = false;

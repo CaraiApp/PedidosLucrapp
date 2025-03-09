@@ -44,29 +44,77 @@ export function useAuth() {
           
         // Si obtenemos el usuario correctamente, intentamos obtener su membresía activa
         if (!userError && userData) {
-          if (userData.membresia_activa_id) {
-            // Obtener la membresía activa del usuario
-            const { data: membresiaData, error: membresiaError } = await supabase
-              .from('membresias_usuarios')
-              .select(`
-                id,
-                tipo_membresia:membresia_tipos(*),
-                fecha_inicio,
-                fecha_fin,
-                estado
-              `)
-              .eq('id', userData.membresia_activa_id)
-              .single();
+          // MODIFICACIÓN IMPORTANTE: Buscamos siempre la membresía activa por estado, no por ID
+          console.log("Buscando membresía activa directamente por estado, sin depender del ID almacenado");
+          
+          // Obtener la membresía activa del usuario buscando por estado 'activa'
+          const { data: membresiaData, error: membresiaError } = await supabase
+            .from('membresias_usuarios')
+            .select(`
+              id,
+              tipo_membresia:membresia_tipos(*),
+              fecha_inicio,
+              fecha_fin,
+              estado
+            `)
+            .eq('usuario_id', userData.id)
+            .eq('estado', 'activa')
+            .order('fecha_inicio', { ascending: false })
+            .maybeSingle();
+          
+          if (!membresiaError && membresiaData) {
+            // Si encontramos una membresía activa, la asignamos al usuario
+            console.log("Membresía activa encontrada:", membresiaData.id);
+            userData.membresia_activa = membresiaData;
+            
+            // Corregir la referencia en el usuario si no coincide
+            if (userData.membresia_activa_id !== membresiaData.id) {
+              console.log("Corrigiendo referencia de membresía en el usuario");
+              console.log("  - ID actual:", userData.membresia_activa_id);
+              console.log("  - ID correcto:", membresiaData.id);
               
-            if (!membresiaError && membresiaData) {
-              // Agregar la membresía al objeto de usuario
-              userData.membresia_activa = membresiaData;
-            } else {
-              console.log('No se pudo cargar la membresía activa:', membresiaError);
-              userData.membresia_activa = null;
+              try {
+                // Actualizar el campo membresia_activa_id en el usuario
+                const { error: updateError } = await supabase
+                  .from('usuarios')
+                  .update({ membresia_activa_id: membresiaData.id })
+                  .eq('id', userData.id);
+                  
+                if (updateError) {
+                  console.error("Error al actualizar referencia de membresía:", updateError);
+                } else {
+                  console.log("Referencia de membresía actualizada correctamente");
+                  // Actualizar también en memoria
+                  userData.membresia_activa_id = membresiaData.id;
+                }
+              } catch (updateErr) {
+                console.error("Error general al actualizar referencia:", updateErr);
+              }
             }
           } else {
+            console.log('No se encontró membresía activa:', membresiaError || 'El usuario no tiene membresías activas');
             userData.membresia_activa = null;
+            
+            // Si hay una referencia pero no existe la membresía, limpiar la referencia
+            if (userData.membresia_activa_id) {
+              console.log("Limpiando referencia a membresía inexistente");
+              
+              try {
+                const { error: clearError } = await supabase
+                  .from('usuarios')
+                  .update({ membresia_activa_id: null })
+                  .eq('id', userData.id);
+                  
+                if (clearError) {
+                  console.error("Error al limpiar referencia:", clearError);
+                } else {
+                  console.log("Referencia limpiada correctamente");
+                  userData.membresia_activa_id = null;
+                }
+              } catch (clearErr) {
+                console.error("Error general al limpiar referencia:", clearErr);
+              }
+            }
           }
         }
           
