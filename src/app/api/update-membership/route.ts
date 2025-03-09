@@ -32,16 +32,45 @@ export async function POST(request: NextRequest) {
       .eq("tipo_membresia_id", premiumMembershipId)
       .eq("estado", "activa");
       
+    // Buscamos si ya existe una membresía con el tipo premium
+    const existingPremiumMembership = existingMemberships?.find(m => 
+      m.tipo_membresia_id === premiumMembershipId
+    );
+    
     let membershipId;
     
-    // Si no existe una membresía activa con el tipo premium, la creamos
-    if (!existingMemberships || existingMemberships.length === 0) {
-      // Calcular fechas
+    if (existingPremiumMembership) {
+      // Si existe, la activamos y actualizamos sus fechas
       const fechaInicio = new Date().toISOString();
       const fechaFin = new Date();
       fechaFin.setFullYear(fechaFin.getFullYear() + 1); // 1 año de validez
       
-      // Crear nueva membresía
+      const { data: updatedMembership, error: updateError } = await supabase
+        .from("membresias_usuarios")
+        .update({
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin.toISOString(),
+          estado: "activa"
+        })
+        .eq("id", existingPremiumMembership.id)
+        .select("id")
+        .single();
+        
+      if (updateError) {
+        return NextResponse.json({
+          success: false,
+          error: updateError.message,
+          step: "Actualización de membresía existente"
+        }, { status: 500 });
+      }
+      
+      membershipId = updatedMembership.id;
+    } else {
+      // Si no existe, creamos una nueva
+      const fechaInicio = new Date().toISOString();
+      const fechaFin = new Date();
+      fechaFin.setFullYear(fechaFin.getFullYear() + 1); // 1 año de validez
+      
       const { data: newMembership, error: newError } = await supabase
         .from("membresias_usuarios")
         .insert({
@@ -63,9 +92,20 @@ export async function POST(request: NextRequest) {
       }
       
       membershipId = newMembership.id;
-    } else {
-      // Usar la existente
-      membershipId = existingMemberships[0].id;
+    }
+    
+    // Desactivar otras membresías activas
+    if (existingMemberships && existingMemberships.length > 0) {
+      const otherActiveIds = existingMemberships
+        .filter(m => m.estado === 'activa' && m.id !== membershipId)
+        .map(m => m.id);
+        
+      if (otherActiveIds.length > 0) {
+        await supabase
+          .from("membresias_usuarios")
+          .update({ estado: "inactiva" })
+          .in("id", otherActiveIds);
+      }
     }
     
     // 2. Actualizar la membresía activa del usuario
