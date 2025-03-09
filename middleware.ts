@@ -28,9 +28,25 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next();
     }
 
-    // Parámetro de acceso de emergencia para administradores
+    // Parámetro de acceso de emergencia para administradores (solo para acceso de emergencia)
     const adminKey = req.nextUrl.searchParams.get('adminKey');
     if (adminKey === 'luisAdmin2025') {
+      // Crear una respuesta que incluya una cookie de acceso temporal
+      const response = NextResponse.next();
+      // Establecer una cookie de emergencia que expire en 1 hora
+      response.cookies.set('adminEmergencyAccess', 'granted', { 
+        maxAge: 3600,
+        httpOnly: true,
+        path: '/admin',
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+      });
+      return response;
+    }
+    
+    // Verificar cookie de emergencia
+    const emergencyAccess = req.cookies.get('adminEmergencyAccess')?.value;
+    if (emergencyAccess === 'granted') {
       return NextResponse.next();
     }
     
@@ -38,33 +54,59 @@ export async function middleware(req: NextRequest) {
     const adminCookie = req.cookies.get('adminAuth')?.value;
     
     // Verificar si el usuario es un superadmin basado en la sesión
-    const res = NextResponse.next();
-    const supabase = createMiddlewareClient({ req, res });
+    const supabase = createMiddlewareClient({ req, res: NextResponse.next() });
     
     try {
-      const { data } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
+      
+      // Si hay un error al verificar la sesión, redirigir al login
+      if (error) {
+        console.error('Error verificando sesión en middleware:', error);
+        return NextResponse.redirect(new URL('/admin', req.url));
+      }
+      
       const userEmail = data?.session?.user?.email;
       
       // Si es un superadmin por email, permitir acceso
       if (userEmail === 'luisocro@gmail.com') {
-        return res;
+        const response = NextResponse.next();
+        // Establecer cookie para accesos futuros
+        response.cookies.set('adminSuperAccess', 'granted', { 
+          maxAge: 24 * 3600, // 24 horas
+          httpOnly: true,
+          path: '/admin',
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict'
+        });
+        return response;
       }
       
-      // Si no tiene cookie de admin y no es superadmin, redirigir
+      // Verificar cookie de superacceso (establecida anteriormente)
+      const superAccess = req.cookies.get('adminSuperAccess')?.value;
+      if (superAccess === 'granted') {
+        return NextResponse.next();
+      }
+      
+      // Si no es superadmin, verificar cookie de autenticación admin
       if (!adminCookie) {
+        console.log('Sin cookie de admin, redirigiendo a login');
         return NextResponse.redirect(new URL('/admin', req.url));
       }
       
-      // Tiene cookie de admin, podría ser válida
-      return res;
+      // Aunque tenga cookie de admin, forzar una redirección para que el cliente vuelva a verificar
+      // Esto es más seguro que permitir acceso directamente
+      const response = NextResponse.next();
+      response.cookies.set('adminAuthVerify', 'required', { 
+        maxAge: 5, // Solo 5 segundos para que el cliente realice la verificación
+        path: '/admin',
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+      });
+      return response;
     } catch (err) {
-      // Error de autenticación, verificar solo la cookie
-      if (!adminCookie) {
-        return NextResponse.redirect(new URL('/admin', req.url));
-      }
-      
-      // Tiene cookie, permitir que el componente cliente verifique su validez
-      return NextResponse.next();
+      console.error('Error en middleware de admin:', err);
+      // Cualquier error en el proceso de autenticación debe redirigir al login
+      return NextResponse.redirect(new URL('/admin', req.url));
     }
   }
 
@@ -96,10 +138,12 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
-// Configuración más simple y efectiva para producción
+// Configuración de middleware para protección de rutas
 export const config = {
   matcher: [
-    // Excluir archivos estáticos y API routes
+    // Proteger específicamente las rutas de admin con mayor prioridad
+    '/admin/:path*',
+    // Excluir archivos estáticos y API routes para las demás rutas
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

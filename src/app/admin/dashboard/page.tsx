@@ -32,10 +32,60 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Cargar estadísticas al montar el componente
-    // La verificación de acceso ya se hace en el AdminAuthGuard
-    cargarEstadisticas();
-  }, []);
+    // Verificación adicional de seguridad al cargar el dashboard
+    const verificarAccesoAdmin = async () => {
+      try {
+        // Verificar si hay autenticación válida para admin
+        const tieneAcceso = await verificarAdminAcceso();
+        if (!tieneAcceso) {
+          console.error("Acceso no autorizado al dashboard");
+          router.replace('/admin');
+          return;
+        }
+        
+        // Si tiene acceso, cargar las estadísticas
+        cargarEstadisticas();
+      } catch (error) {
+        console.error("Error verificando acceso admin:", error);
+        router.replace('/admin');
+      }
+    };
+    
+    verificarAccesoAdmin();
+  }, [router]);
+  
+  // Función para verificar que tiene acceso de admin válido
+  const verificarAdminAcceso = async (): Promise<boolean> => {
+    try {
+      // Verificar en múltiples fuentes para mayor seguridad
+      
+      // 1. Verificar si es superadmin
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.user?.email === 'luisocro@gmail.com') {
+        return true;
+      }
+      
+      // 2. Verificar cookies especiales
+      if (document.cookie.includes('adminSuperAccess=granted') || 
+          document.cookie.includes('adminEmergencyAccess=granted')) {
+        return true;
+      }
+      
+      // 3. Verificar almacenamiento
+      if ((sessionStorage && sessionStorage.getItem('adminAuth')) ||
+          (localStorage && localStorage.getItem('adminAuth')) ||
+          (sessionStorage && sessionStorage.getItem('adminAccess') === 'granted') ||
+          (localStorage && localStorage.getItem('adminAccess') === 'granted')) {
+        return true;
+      }
+      
+      // Si no se encontró ninguna fuente válida, denegar acceso
+      return false;
+    } catch (error) {
+      console.error("Error en verificación de acceso:", error);
+      return false;
+    }
+  };
 
   const cargarEstadisticas = async () => {
     try {
