@@ -12,11 +12,22 @@ export async function GET(request: NextRequest) {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     console.log("Sesión detectada:", !!sessionData?.session);
     
-    // Usar el ID fijo del usuario para evitar problemas con la sesión
-    const userId = "def38ca4-63a6-4ce1-8dbd-32abda08a14c"; // ID fijo de Luis
-    const userEmail = "luiscrouseillesvillena@gmail.com"; // Email fijo
+    // Obtener ID y email del usuario de la sesión
+    const userId = sessionData?.session?.user?.id;
+    const userEmail = sessionData?.session?.user?.email;
+    
+    console.log("Verificando acceso para usuario:", { userId, userEmail });
+    
+    // Si no hay sesión activa, devolver error
+    if (!userId || !userEmail) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "No hay sesión activa" 
+      }, { status: 401 });
+    }
     
     // Lista de emails para los que siempre funciona la característica (para desarrollo)
+    // Agregamos un wildcard para permitir todos los emails con dominio lucrapp.com
     const permisosEspeciales = [
       'luiscrouseillesvillena@gmail.com',
       'admin@lucrapp.com',
@@ -24,8 +35,17 @@ export async function GET(request: NextRequest) {
       'luisocro@gmail.com'
     ];
     
-    // Si el usuario tiene permisos especiales, acceso inmediato
-    if (userEmail && permisosEspeciales.includes(userEmail)) {
+    // Añadir soporte para dominios completos (permitir cualquier email de lucrapp.com)
+    const dominiosPermitidos = ['lucrapp.com'];
+    
+    // Si el usuario tiene permisos especiales por email exacto o por dominio, conceder acceso inmediato
+    const tienePermisoEspecial = userEmail && (
+      permisosEspeciales.includes(userEmail) || 
+      dominiosPermitidos.some(dominio => userEmail.endsWith('@' + dominio))
+    );
+    
+    if (tienePermisoEspecial) {
+      console.log("Concediendo acceso por permisos especiales a:", userEmail);
       return NextResponse.json({
         success: true,
         message: "Acceso concedido con permisos especiales",
@@ -99,6 +119,14 @@ export async function GET(request: NextRequest) {
         tipoMembresia = tipoMembresiaData;
       }
     }
+    
+    // Para depurar problemas, registrar información detallada
+    console.log("Resultado de verificación IA:", {
+      tieneAccesoIA,
+      tipoMembresiaNombre: tipoMembresia?.nombre,
+      tipoMembresiaId: tipoMembresia?.id,
+      tipoMembresiaTieneAI: tipoMembresia?.tiene_ai
+    });
     
     return NextResponse.json({
       success: true,

@@ -12,9 +12,7 @@ export async function POST(request: NextRequest) {
 
     // Usar cookies para diagnóstico
     const cookieStore = cookies();
-    console.log(
-      "Cookies disponibles en diagnóstico"
-    );
+    console.log("Cookies disponibles en diagnóstico");
 
     // Verificar sesión a través de Supabase
     const { data: sessionData, error: sessionError } =
@@ -87,15 +85,15 @@ export async function POST(request: NextRequest) {
           " y extrae la siguiente información estructurada:\n\n" +
           "1. Información del proveedor:\n" +
           "   - Nombre del proveedor\n" +
-          "   - CIF/NIF (generalmente comienza con una letra seguida de 8 números, como B12345678 y tienes que tener en cuenta que no sea el mismo que el cif de los datos de facturación de la cuenta. puede estar también en uno de los márgenes de la factura escrito de maenra vertical.)\n" +
+          "   - CIF/NIF (generalmente comienza con una letra, seguida de 8 números, como B12345678, suele ir despuñes de las palabras CIF: y tienes que tener en cuenta que no sea el mismo que el cif de los datos de facturación de la cuenta. puede estar también en uno de los márgenes de la factura escrito de maenra vertical.)\n" +
           "   - Dirección\n" +
           "   - Teléfono\n" +
           "   - Email\n\n" +
           "2. Información de artículos/productos (para cada línea):\n" +
-          "   - Nombre del producto\n" +
+          "   - Nombre del producto (Suele estar en la columna llamada, descripción, artículos o proeuctos)\n" +
           "   - Cantidad no es relevante\n" +
           "   - Precio unitario, normalmente en la columna de precio\n" +
-          "   - Referencia o código (si está disponible)\n\n" +
+          "   - Referencia o código (si está disponible y normalmente en la columna ref., codigo, o regerencia)\n\n" +
           "Por favor, devuelve la información en formato JSON con la siguiente estructura:\n" +
           "{\n" +
           '  "proveedor": {\n' +
