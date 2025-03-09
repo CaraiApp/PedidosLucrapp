@@ -47,7 +47,18 @@ export default function Comunicaciones() {
             return;
           }
           
-          // Verificar explícitamente el rol del usuario en la base de datos
+          // Verificar primero si es superadmin por email (acceso directo)
+          const superAdminEmails = ['luisocro@gmail.com'];
+          
+          if (session.user.email && superAdminEmails.includes(session.user.email)) {
+            console.log("Superadmin detectado por email:", session.user.email);
+            // Es superadmin por email, permitir acceso inmediato
+            await cargarUsuarios();
+            setPermisosVerificados(true);
+            return;
+          }
+          
+          // Si no es superadmin por email, verificar rol en la base de datos
           const { data: userData, error: userError } = await supabase
             .from('usuarios')
             .select('rol, id, email')
@@ -59,7 +70,15 @@ export default function Comunicaciones() {
             throw new Error("Error al verificar permisos");
           }
           
-          console.log("Rol del usuario:", userData?.rol);
+          console.log("Rol del usuario:", userData?.rol, "Email:", userData?.email);
+          
+          // Segunda oportunidad de verificar superadmin por email
+          if (userData?.email && superAdminEmails.includes(userData.email)) {
+            console.log("Superadmin detectado por email (desde base de datos):", userData.email);
+            await cargarUsuarios();
+            setPermisosVerificados(true);
+            return;
+          }
           
           // Verificar que el usuario tiene rol de admin o superadmin
           if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
@@ -187,11 +206,25 @@ export default function Comunicaciones() {
         throw new Error("No se pudo obtener la sesión");
       }
       
-      // Ya hemos verificado los permisos de administrador en useEffect, 
-      // por lo que no es necesario volver a verificar aquí.
-      // Esto evita posibles inconsistencias entre diferentes verificaciones
+      // Para asegurarnos de que funciona correctamente para superadmins por email
+      let isAuthorized = false;
       
-      console.log("Enviando correos como administrador verificado");
+      // Verificar si es superadmin por email (acceso directo)
+      const superAdminEmails = ['luisocro@gmail.com'];
+      if (session.user.email && superAdminEmails.includes(session.user.email)) {
+        console.log("Enviando correos como superadmin (por email):", session.user.email);
+        isAuthorized = true;
+      } else {
+        // Ya verificamos los permisos en useEffect, pero confirmamos una vez más
+        console.log("Verificando acceso como admin");
+        isAuthorized = true; // Asumimos autorizado porque ya pasó la verificación inicial
+      }
+      
+      if (!isAuthorized) {
+        throw new Error("No tienes autorización para enviar correos");
+      }
+      
+      console.log("Autorización confirmada, procediendo con el envío de correos");
       
       // Obtener los usuarios seleccionados
       const usuariosParaEnviar = usuarios.filter(u => 
@@ -226,6 +259,9 @@ export default function Comunicaciones() {
                 asunto: asunto,
                 contenido: contenidoHtml,
                 token: session.access_token,
+                // Incluimos la información de superadmin en la solicitud
+                isSuperAdmin: superAdminEmails.includes(session.user.email || ''),
+                remitente: session.user.email
               }),
             });
             

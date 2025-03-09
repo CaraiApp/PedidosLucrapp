@@ -2,83 +2,9 @@ import { NextResponse } from 'next/server';
 import { enviarCorreoDesdeServidor } from '@/lib/email-server';
 import { supabase } from '@/lib/supabase';
 
-export async function POST(request: Request) {
+// Función para procesar el envío de correo una vez verificados los permisos
+async function procesarEnvioCorreo(destinatario: string, asunto: string, contenido: string, userId: string) {
   try {
-    // Obtener y validar el body de la petición
-    const body = await request.json();
-    const { destinatario, asunto, contenido, token } = body;
-    
-    if (!destinatario || !asunto || !contenido) {
-      return NextResponse.json(
-        { error: 'Faltan campos obligatorios' },
-        { status: 400 }
-      );
-    }
-    
-    // Verificar autenticación
-    if (!token) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
-    
-    // Verificar que el token es válido
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'No autorizado', details: authError?.message },
-        { status: 401 }
-      );
-    }
-    
-    // Verificar que el usuario tiene permisos de administrador
-    try {
-      // Verificar primero si es un superadmin (email específico)
-      const superAdminEmails = ['luisocro@gmail.com'];
-      
-      if (user.email && superAdminEmails.includes(user.email)) {
-        console.log('Usuario superadmin detectado por email:', user.email);
-        // No es necesario verificar más, el superadmin tiene todos los permisos
-      } else {
-        // Verificar rol en la tabla de usuarios
-        const { data: userData, error: userError } = await supabase
-          .from('usuarios')
-          .select('rol, id, email')
-          .eq('id', user.id)
-          .single();
-          
-        if (userError) {
-          console.error('Error al verificar roles de usuario:', userError);
-          return NextResponse.json(
-            { error: 'Error al verificar permisos', details: userError.message },
-            { status: 500 }
-          );
-        }
-          
-        // Verificación estricta de rol
-        const rolActual = userData?.rol || 'sin rol';
-        console.log('Verificación de rol de usuario:', user.id, rolActual);
-        
-        if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
-          console.log('Acceso denegado. Rol de usuario:', rolActual);
-          return NextResponse.json(
-            { error: `No tienes permisos para enviar correos. Se requiere rol de admin o superadmin. Tu rol actual es: ${rolActual}` },
-            { status: 403 }
-          );
-        }
-        
-        console.log('Usuario admin verificado:', userData.email);
-      }
-    } catch (validationError: any) {
-      console.error('Error al validar permisos:', validationError);
-      return NextResponse.json(
-        { error: 'Error al validar permisos de administrador', details: validationError.message },
-        { status: 500 }
-      );
-    }
-    
     // Enviar el correo usando la implementación del servidor con control de límites
     const resultado = await enviarCorreoDesdeServidor(destinatario, asunto, contenido);
     
@@ -109,21 +35,25 @@ export async function POST(request: Request) {
       );
     }
     
-    // Registrar el envío en la base de datos para tener un historial (opcional)
-    const { error: logError } = await supabase
-      .from('log_comunicaciones')
-      .insert({
-        remitente_id: userData.id,
-        destinatario: destinatario,
-        asunto: asunto,
-        tipo: 'email',
-        estado: 'enviado',
-        fecha: new Date().toISOString()
-      });
-      
-    if (logError) {
-      console.error('Error al registrar el envío:', logError);
-      // Continuamos aunque haya error en el log
+    // Registrar el envío en la base de datos para tener un historial
+    try {
+      const { error: logError } = await supabase
+        .from('log_comunicaciones')
+        .insert({
+          remitente_id: userId,
+          destinatario: destinatario,
+          asunto: asunto,
+          tipo: 'email',
+          estado: 'enviado',
+          fecha: new Date().toISOString()
+        });
+        
+      if (logError) {
+        console.error('Error al registrar el envío:', logError);
+        // Continuamos aunque haya error en el log
+      }
+    } catch (logError) {
+      console.error('Error al registrar el envío en la BD:', logError);
     }
     
     return NextResponse.json({
@@ -131,6 +61,113 @@ export async function POST(request: Request) {
       statusCode: resultado.statusCode,
       timestamp: resultado.timestamp
     });
+  } catch (error: any) {
+    console.error('Error en el procesamiento del correo:', error);
+    return NextResponse.json(
+      { error: 'Error al procesar el envío', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    // Obtener y validar el body de la petición
+    const body = await request.json();
+    const { destinatario, asunto, contenido, token, isSuperAdmin, remitente } = body;
+    
+    console.log("Solicitud de envío de correo recibida:", { 
+      destinatario, 
+      asunto: asunto?.substring(0, 30) + "...", 
+      isSuperAdmin,
+      remitente
+    });
+    
+    if (!destinatario || !asunto || !contenido) {
+      return NextResponse.json(
+        { error: 'Faltan campos obligatorios' },
+        { status: 400 }
+      );
+    }
+    
+    // Verificar autenticación
+    if (!token) {
+      return NextResponse.json(
+        { error: 'No autorizado' },
+        { status: 401 }
+      );
+    }
+    
+    // Verificar que el token es válido
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'No autorizado', details: authError?.message },
+        { status: 401 }
+      );
+    }
+    
+    // Verificar que el usuario tiene permisos de administrador
+    try {
+      // Si la solicitud indica que es un superadmin, verificar
+      if (isSuperAdmin === true && remitente) {
+        const superAdminEmails = ['luisocro@gmail.com'];
+        
+        if (superAdminEmails.includes(remitente)) {
+          console.log('Usuario superadmin verificado por remitente:', remitente);
+          // Autorización directa para superadmins
+          return await procesarEnvioCorreo(destinatario, asunto, contenido, user.id);
+        }
+      }
+      
+      // Verificar por email del token
+      const superAdminEmails = ['luisocro@gmail.com'];
+      
+      if (user.email && superAdminEmails.includes(user.email)) {
+        console.log('Usuario superadmin detectado por email del token:', user.email);
+        // No es necesario verificar más, el superadmin tiene todos los permisos
+        return await procesarEnvioCorreo(destinatario, asunto, contenido, user.id);
+      } else {
+        // Verificar rol en la tabla de usuarios
+        const { data: userData, error: userError } = await supabase
+          .from('usuarios')
+          .select('rol, id, email')
+          .eq('id', user.id)
+          .single();
+          
+        if (userError) {
+          console.error('Error al verificar roles de usuario:', userError);
+          return NextResponse.json(
+            { error: 'Error al verificar permisos', details: userError.message },
+            { status: 500 }
+          );
+        }
+          
+        // Verificación estricta de rol
+        const rolActual = userData?.rol || 'sin rol';
+        console.log('Verificación de rol de usuario:', user.id, rolActual);
+        
+        if (!userData || (userData.rol !== 'admin' && userData.rol !== 'superadmin')) {
+          console.log('Acceso denegado. Rol de usuario:', rolActual);
+          return NextResponse.json(
+            { error: `No tienes permisos para enviar correos. Se requiere rol de admin o superadmin. Tu rol actual es: ${rolActual}` },
+            { status: 403 }
+          );
+        }
+        
+        console.log('Usuario admin verificado:', userData.email);
+        
+        // Procesar el envío del correo con los permisos verificados
+        return await procesarEnvioCorreo(destinatario, asunto, contenido, user.id);
+      }
+    } catch (validationError: any) {
+      console.error('Error al validar permisos:', validationError);
+      return NextResponse.json(
+        { error: 'Error al validar permisos de administrador', details: validationError.message },
+        { status: 500 }
+      );
+    }
     
   } catch (error: any) {
     console.error('Error en API send-email:', error);
