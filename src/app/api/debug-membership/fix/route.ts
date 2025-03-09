@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from "@/lib/supabase";
+import { createClient } from '@supabase/supabase-js';
+
+// Para este endpoint usamos el cliente con los permisos de administrador
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Verificar si el usuario existe
-    const { data: userData, error: userError } = await supabase
+    const { data: userData, error: userError } = await supabaseAdmin
       .from("usuarios")
       .select("id, email, membresia_activa_id")
       .eq("id", userId)
@@ -28,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Buscar todas las membresías del usuario
-    const { data: memberships, error: membershipsError } = await supabase
+    const { data: memberships, error: membershipsError } = await supabaseAdmin
       .from("membresias_usuarios")
       .select(`
         id, 
@@ -62,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Si no se encontró ninguna membresía, necesitamos crear una nueva (gratuita)
     if (!targetMembership) {
       // Intentar encontrar el tipo de membresía gratuita o cualquier tipo de membresía
-      const { data: membershipTypes, error: typesError } = await supabase
+      const { data: membershipTypes, error: typesError } = await supabaseAdmin
         .from("membresia_tipos")
         .select("id, nombre, tiene_ai")
         .order("tiene_ai", { ascending: true }); // Primero las gratuitas (sin AI)
@@ -108,7 +114,7 @@ export async function POST(request: NextRequest) {
       const fechaFin = new Date();
       fechaFin.setFullYear(fechaFin.getFullYear() + 10); // 10 años para membresía gratuita
       
-      const { data: newMembership, error: createError } = await supabase
+      const { data: newMembership, error: createError } = await supabaseAdmin
         .from("membresias_usuarios")
         .insert({
           usuario_id: userId,
@@ -132,7 +138,7 @@ export async function POST(request: NextRequest) {
     
     // 6. Si la membresía objetivo no está activa, activarla
     if (targetMembership && targetMembership.estado !== 'activa') {
-      const { error: updateMembershipError } = await supabase
+      const { error: updateMembershipError } = await supabaseAdmin
         .from("membresias_usuarios")
         .update({ estado: "activa" })
         .eq("id", targetMembership.id);
@@ -147,7 +153,7 @@ export async function POST(request: NextRequest) {
     
     // 7. Actualizar el usuario con la membresía objetivo
     if (targetMembership) {
-      const { error: updateUserError } = await supabase
+      const { error: updateUserError } = await supabaseAdmin
         .from("usuarios")
         .update({ membresia_activa_id: targetMembership.id })
         .eq("id", userId);
@@ -173,7 +179,7 @@ export async function POST(request: NextRequest) {
     if (otherActiveMemberships && otherActiveMemberships.length > 0) {
       const idsToDeactivate = otherActiveMemberships.map(m => m.id);
       
-      const { error: deactivateError } = await supabase
+      const { error: deactivateError } = await supabaseAdmin
         .from("membresias_usuarios")
         .update({ estado: "inactiva" })
         .in("id", idsToDeactivate);
