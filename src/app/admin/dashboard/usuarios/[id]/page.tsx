@@ -12,6 +12,18 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../../auth";
 
+// Función utilitaria para mapear IDs a nombres
+function getNombrePlan(id: string): string {
+  const PLANES = {
+    "13fae609-2679-47fa-9731-e2f1badc4a61": "Plan Gratuito",
+    "24a34113-e011-4580-99fa-db1c91b60489": "Plan Pro", 
+    "9e6ecc49-90a9-4952-8a00-55b12cd39df1": "Plan Premium (IA)",
+    "df6a192e-941e-415c-b152-2572dcba092c": "Plan Inicial"
+  };
+  
+  return PLANES[id] || `Plan ${id.substring(0, 8)}`;
+}
+
 export default function PerfilUsuario() {
   const { isAdmin, isSuperAdmin } = useAuth();
   const { isAuthenticated } = useAdminAuth();
@@ -28,92 +40,84 @@ export default function PerfilUsuario() {
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
   const [permisosVerificados, setPermisosVerificados] = useState(false);
 
+  // Cargar datos de usuario y su membresía
   const cargarDatosUsuario = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("===== CARGANDO DATOS DE USUARIO Y MEMBRESÍA =====");
-      console.log("ID de usuario:", userId);
+      console.log("Cargando datos básicos del usuario...");
       
-      // ENFOQUE ULTRA DIRECTO: Dos consultas sencillas sin joins ni relaciones
-      
-      // Paso 1: Obtener datos básicos del usuario
-      console.log("Obteniendo datos básicos del usuario...");
+      // 1. Obtener los datos básicos del usuario
       const { data: userData, error: userError } = await supabase
         .from("usuarios")
         .select("*")
         .eq("id", userId)
         .single();
-
+        
       if (userError) {
-        console.error("Error al obtener datos básicos del usuario:", userError);
+        console.error("Error al obtener usuario:", userError);
         throw userError;
       }
       
-      console.log("Datos básicos del usuario obtenidos correctamente");
-      
-      // Paso 2: Consulta directa y sencilla para la membresía activa
-      console.log("Consultando membresía activa...");
-      
+      // 2. Consulta directa para buscar membresía activa
       const { data: membresiaData, error: membresiaError } = await supabase
-        .from('membresias_usuarios')
-        .select(`
-          id,
-          tipo_membresia_id,
-          fecha_inicio,
-          fecha_fin,
-          estado
-        `)
-        .eq('usuario_id', userId)
-        .eq('estado', 'activa')
+        .from("membresias_usuarios")
+        .select("id, tipo_membresia_id, fecha_inicio, fecha_fin, estado")
+        .eq("usuario_id", userId)
+        .eq("estado", "activa")
         .limit(1);
-      
+
       if (membresiaError) {
-        console.error("Error al consultar membresía activa:", membresiaError);
-        throw membresiaError;
+        console.error("Error al consultar membresía:", membresiaError);
       }
       
-      // Paso 3: Si encontramos membresía activa, obtener su tipo/nombre
-      let membresiaActiva = null;
+      // 3. Si encontramos una membresía activa, obtener su tipo
+      let membresiaCompleta = null;
       
       if (membresiaData && membresiaData.length > 0) {
         const membresiaBasica = membresiaData[0];
         console.log("Membresía activa encontrada:", membresiaBasica.id);
         
-        // Consulta separada para obtener datos del tipo de membresía
+        // Consulta para obtener detalles del tipo de membresía
         const { data: tipoData, error: tipoError } = await supabase
-          .from('membresia_tipos')
-          .select('*')
-          .eq('id', membresiaBasica.tipo_membresia_id)
+          .from("membresia_tipos")
+          .select("*")
+          .eq("id", membresiaBasica.tipo_membresia_id)
           .single();
           
         if (tipoError) {
-          console.error("Error al consultar tipo de membresía:", tipoError);
-        } else if (tipoData) {
-          // Construir objeto de membresía completo
-          membresiaActiva = {
+          console.error("Error al obtener tipo de membresía:", tipoError);
+          // Crear un objeto básico con el nombre basado en el ID
+          membresiaCompleta = {
+            ...membresiaBasica,
+            tipo_membresia: {
+              id: membresiaBasica.tipo_membresia_id,
+              nombre: getNombrePlan(membresiaBasica.tipo_membresia_id)
+            }
+          };
+        } else {
+          // Crear un objeto completo con todos los datos del tipo
+          membresiaCompleta = {
             ...membresiaBasica,
             tipo_membresia: tipoData
           };
         }
       }
       
-      // Devolver usuario con o sin membresía
+      // 4. Devolver el usuario con su membresía (o sin ella)
       const usuarioCompleto = {
         ...userData,
-        membresia_activa: membresiaActiva
+        membresia_activa: membresiaCompleta
       };
       
-      // Actualizar estado
       setUsuario(usuarioCompleto);
     } catch (err) {
-      console.error("Error general al cargar datos del usuario:", err);
+      console.error("Error al cargar datos del usuario:", err);
       setMensaje({
         texto: "No se pudieron cargar los datos del usuario",
         tipo: "error"
       });
     } finally {
       setLoading(false);
-      console.log("===== FIN DE CARGA DE DATOS =====");
     }
   }, [userId]);
   
@@ -122,7 +126,6 @@ export default function PerfilUsuario() {
     if (!permisosVerificados) {
       const verificarAcceso = async () => {
         try {
-          // Simplificar la verificación para evitar problemas con las rutas dinámicas
           console.log("Accediendo a perfil de usuario con ID:", userId);
           
           // Intentamos cargar los datos del usuario directamente

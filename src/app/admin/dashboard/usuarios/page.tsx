@@ -12,30 +12,30 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
-// Componente ultrasimplificado que solo muestra el nombre del plan
+// Componente ultra básico que simplemente muestra el texto del plan
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
-  const [tipoMembresiaId, setTipoMembresiaId] = useState<string | null>(null);
-  const [cargando, setCargando] = useState<boolean>(true);
+  const [nombrePlan, setNombrePlan] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(true);
 
-  // Mapeo manual y directo de IDs a nombres
-  function getNombrePlan(id: string): string {
-    switch(id) {
-      case "13fae609-2679-47fa-9731-e2f1badc4a61": return "Plan Gratuito";
-      case "24a34113-e011-4580-99fa-db1c91b60489": return "Plan Pro";
-      case "9e6ecc49-90a9-4952-8a00-55b12cd39df1": return "Plan Premium (IA)";
-      case "df6a192e-941e-415c-b152-2572dcba092c": return "Plan Inicial";
-      default: return "Plan ID: " + id.substring(0, 8);
-    }
-  }
+  // El mapeo de IDs a nombres
+  const PLANES = {
+    "13fae609-2679-47fa-9731-e2f1badc4a61": "Plan Gratuito",
+    "24a34113-e011-4580-99fa-db1c91b60489": "Plan Pro",
+    "9e6ecc49-90a9-4952-8a00-55b12cd39df1": "Plan Premium (IA)",
+    "df6a192e-941e-415c-b152-2572dcba092c": "Plan Inicial"
+  };
 
   useEffect(() => {
-    // Consulta SQL mínima para encontrar membresía activa por usuario
-    const buscarMembresia = async () => {
+    async function cargarPlan() {
+      if (!usuarioId) {
+        setCargando(false);
+        return;
+      }
+
       setCargando(true);
-
+      
       try {
-        console.log(`Consultando membresía activa para usuario ${usuarioId}`);
-
+        // Consulta directa a membresias_usuarios para encontrar una membresía activa
         const { data, error } = await supabase
           .from('membresias_usuarios')
           .select('tipo_membresia_id')
@@ -44,45 +44,36 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
           .limit(1);
 
         if (error) {
-          console.error("Error consultando membresía:", error);
-          setTipoMembresiaId(null);
-        } else if (data && data.length > 0) {
-          console.log(`Membresía encontrada: ${data[0].tipo_membresia_id}`);
-          setTipoMembresiaId(data[0].tipo_membresia_id);
+          console.error("Error al consultar membresía:", error);
+          setNombrePlan(null);
+        } else if (data && data.length > 0 && data[0].tipo_membresia_id) {
+          // Si tiene una membresía activa, mostrar su nombre
+          const tipoId = data[0].tipo_membresia_id;
+          setNombrePlan(PLANES[tipoId] || `Plan ${tipoId.substring(0, 8)}`);
         } else {
-          console.log("No se encontró membresía activa");
-          setTipoMembresiaId(null);
+          // Si no tiene membresía activa
+          setNombrePlan(null);
         }
       } catch (err) {
-        console.error("Error general:", err);
-        setTipoMembresiaId(null);
+        console.error("Error al cargar membresía:", err);
+        setNombrePlan(null);
       } finally {
         setCargando(false);
       }
-    };
-
-    if (usuarioId) {
-      buscarMembresia();
     }
+
+    cargarPlan();
   }, [usuarioId]);
 
   if (cargando) {
-    return <span className="text-gray-400 text-xs">Cargando...</span>;
+    return <span>...</span>;
   }
 
-  if (!tipoMembresiaId) {
-    return (
-      <span className="px-2 py-1 text-xs font-medium rounded-full text-gray-800 bg-gray-100">
-        Sin membresía
-      </span>
-    );
+  if (!nombrePlan) {
+    return <span className="px-2 py-1 text-xs font-medium rounded-full text-gray-800 bg-gray-100">Sin membresía</span>;
   }
 
-  return (
-    <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-      {getNombrePlan(tipoMembresiaId)}
-    </span>
-  );
+  return <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">{nombrePlan}</span>;
 };
 
 export default function GestionUsuarios() {
