@@ -13,11 +13,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
 // Componente que muestra la membresía activa de un usuario
-const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
+const MembresiaInfo = ({ usuarioId, actualizacion }: { usuarioId: string, actualizacion?: Date }) => {
   // Always declare hooks at the top level of the component
   const [planNombre, setPlanNombre] = useState<string | null>(null);
   const [cargando, setCargando] = useState<boolean>(true);
   const [fechaFin, setFechaFin] = useState<string | null>(null);
+  const [estado, setEstado] = useState<string | null>(null);
 
   // Mapeo actualizado de IDs de planes utilizando la información de la base de datos
   const PLANES: Record<string, string> = {
@@ -28,82 +29,107 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   };
 
   // Mapeo de usuarios con planes específicos (casos especiales)
-  const USER_PLANES_OVERRIDE: Record<string, {plan: string, fecha_fin?: string}> = {
+  const USER_PLANES_OVERRIDE: Record<string, {plan: string, fecha_fin?: string, estado?: string}> = {
     // Usuarios con override específico según CSV
     "ddb19376-9903-487d-b3c8-98e40147c69d": {
       plan: "Plan Premium (IA)", 
-      fecha_fin: "2026-03-08"
+      fecha_fin: "2026-03-08",
+      estado: "activa"
     },
     "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7": {
       plan: "Plan Inicial", 
-      fecha_fin: "2026-03-10"
+      fecha_fin: "2026-03-10",
+      estado: "activa"
     },
     "b99f2269-1587-4c4c-92cd-30a212c2070e": {
       plan: "Plan Premium (IA)",
-      fecha_fin: "2026-03-09"
+      fecha_fin: "2026-03-09",
+      estado: "activa"
     }
   };
 
-  useEffect(() => {
-    async function cargarPlan() {
-      setCargando(true);
-      
-      try {
-        // Consulta directa a la tabla de membresías
-        const { data, error } = await supabase
-          .from('membresias_usuarios')
-          .select('tipo_membresia_id, fecha_fin')
-          .eq('usuario_id', usuarioId)
-          .eq('estado', 'activa')
-          .order('fecha_inicio', { ascending: false })
-          .limit(1);
+  // Esta función hará una consulta fresca a la base de datos
+  const cargarPlan = async () => {
+    setCargando(true);
+    
+    // Imprimir mensaje de depuración
+    console.log(`Cargando membresía para usuario ${usuarioId}...`);
+    
+    try {
+      // Consulta directa a la tabla de membresías
+      const { data, error } = await supabase
+        .from('membresias_usuarios')
+        .select('tipo_membresia_id, fecha_fin, estado')
+        .eq('usuario_id', usuarioId)
+        .eq('estado', 'activa')
+        .order('fecha_inicio', { ascending: false })
+        .limit(1);
 
-        // Si hay un error o no hay datos y existe un override, usamos el override
-        if ((error || !data || data.length === 0) && usuarioId in USER_PLANES_OVERRIDE) {
-          setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
-          setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
-        } 
-        // Si hay datos de la consulta, los usamos
-        else if (data && data.length > 0 && data[0].tipo_membresia_id) {
-          const tipoId = data[0].tipo_membresia_id as string;
-          
-          // Obtener fecha de fin
-          if (data[0].fecha_fin) {
-            const fecha = new Date(data[0].fecha_fin);
-            setFechaFin(fecha.toISOString().split('T')[0]);
-          }
-          
-          // Verificar si existe en nuestro mapeo
-          if (tipoId in PLANES) {
-            setPlanNombre(PLANES[tipoId]);
-          } else {
-            // Plan desconocido - mostrar solo parte del ID
-            setPlanNombre(`Plan ${tipoId.substring(0, 8)}`);
-          }
-        } 
-        // Si no hay datos ni override, no hay membresía
-        else {
-          setPlanNombre(null);
-          setFechaFin(null);
-        }
-      } catch (err) {
-        console.error("Error al cargar membresía:", err);
+      console.log("Respuesta de la consulta de membresía:", { data, error });
+
+      // Si hay un error o no hay datos y existe un override, usamos el override
+      if ((error || !data || data.length === 0) && usuarioId in USER_PLANES_OVERRIDE) {
+        setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
+        setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
+        setEstado(USER_PLANES_OVERRIDE[usuarioId].estado || "activa");
+        console.log("Usando override para usuario:", usuarioId);
+      } 
+      // Si hay datos de la consulta, los usamos
+      else if (data && data.length > 0 && data[0].tipo_membresia_id) {
+        const tipoId = data[0].tipo_membresia_id as string;
         
-        // En caso de error, intentar usar el override
-        if (usuarioId in USER_PLANES_OVERRIDE) {
-          setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
-          setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
-        } else {
-          setPlanNombre(null);
-          setFechaFin(null);
+        // Obtener fecha de fin
+        if (data[0].fecha_fin) {
+          const fecha = new Date(data[0].fecha_fin);
+          setFechaFin(fecha.toISOString().split('T')[0]);
         }
-      } finally {
-        setCargando(false);
+        
+        // Obtener estado
+        setEstado(data[0].estado || null);
+        
+        // Verificar si existe en nuestro mapeo
+        if (tipoId in PLANES) {
+          setPlanNombre(PLANES[tipoId]);
+        } else {
+          // Plan desconocido - mostrar solo parte del ID
+          setPlanNombre(`Plan ${tipoId.substring(0, 8)}`);
+        }
+        
+        console.log("Datos de membresía obtenidos:", {
+          plan: PLANES[tipoId] || `Plan ${tipoId.substring(0, 8)}`,
+          fechaFin: data[0].fecha_fin,
+          estado: data[0].estado
+        });
+      } 
+      // Si no hay datos ni override, no hay membresía
+      else {
+        setPlanNombre(null);
+        setFechaFin(null);
+        setEstado(null);
+        console.log("No se encontró membresía para el usuario:", usuarioId);
       }
+    } catch (err) {
+      console.error("Error al cargar membresía:", err);
+      
+      // En caso de error, intentar usar el override
+      if (usuarioId in USER_PLANES_OVERRIDE) {
+        setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
+        setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
+        setEstado(USER_PLANES_OVERRIDE[usuarioId].estado || "activa");
+      } else {
+        setPlanNombre(null);
+        setFechaFin(null);
+        setEstado(null);
+      }
+    } finally {
+      setCargando(false);
     }
+  };
 
+  // Ejecutamos la carga cada vez que cambia el ID de usuario o la fecha de actualización
+  useEffect(() => {
     cargarPlan();
-  }, [usuarioId]);
+  }, [usuarioId, actualizacion]);
 
   // Renderizado condicional basado en los estados
   if (cargando) {
@@ -116,14 +142,25 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
 
   return (
     <div className="flex flex-col">
-      <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-        {planNombre}
+      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+        estado === 'activa' ? 'text-green-800 bg-green-100' : 'text-orange-800 bg-orange-100'
+      }`}>
+        {planNombre} {estado !== 'activa' && `(${estado || 'inactiva'})`}
       </span>
-      {fechaFin && (
-        <span className="mt-1 text-xs text-gray-500">
-          Hasta: {fechaFin}
-        </span>
-      )}
+      <div className="flex flex-col mt-1">
+        {fechaFin && (
+          <span className="text-xs text-gray-500">
+            Hasta: {fechaFin}
+          </span>
+        )}
+        {estado && (
+          <span className={`text-xs ${
+            estado === 'activa' ? 'text-green-600' : 'text-orange-600'
+          }`}>
+            Estado: {estado === 'activa' ? 'Activa' : estado}
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -628,7 +665,10 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <MembresiaInfo usuarioId={usuario.id} />
+                        <MembresiaInfo 
+                          usuarioId={usuario.id}
+                          actualizacion={ultimaActualizacion}
+                        />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatearFecha(usuario.created_at)}
