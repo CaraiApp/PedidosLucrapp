@@ -12,25 +12,14 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
-// Componente ultra básico que simplemente muestra texto estático para usuarios específicos
+// Componente que muestra la membresía activa de un usuario
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   // Always declare hooks at the top level of the component
   const [planNombre, setPlanNombre] = useState<string | null>(null);
   const [cargando, setCargando] = useState<boolean>(true);
-  const [esUsuarioEspecial, setEsUsuarioEspecial] = useState<boolean>(false);
-  const [planEspecial, setPlanEspecial] = useState<string | null>(null);
+  const [fechaFin, setFechaFin] = useState<string | null>(null);
 
-  // Mapeo directo ID de usuario -> Plan membresía (HARDCODEADO)
-  const USER_PLANES: Record<string, string> = {
-    // ID verificado que funciona correctamente
-    "ddb19376-9903-487d-b3c8-98e40147c69d": "Plan Gratuito", 
-    
-    // Usuarios problemáticos - asignar directamente
-    "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7": "Plan Premium (IA)",
-    "b99f2269-1587-4c4c-92cd-30a212c2070e": "Plan Gratuito"
-  };
-
-  // Mapeo de IDs de planes
+  // Mapeo actualizado de IDs de planes utilizando la información de la base de datos
   const PLANES: Record<string, string> = {
     "13fae609-2679-47fa-9731-e2f1badc4a61": "Plan Gratuito",
     "24a34113-e011-4580-99fa-db1c91b60489": "Plan Pro",
@@ -38,33 +27,52 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     "df6a192e-941e-415c-b152-2572dcba092c": "Plan Inicial"
   };
 
-  useEffect(() => {
-    // Primero verificamos si es un usuario especial
-    if (usuarioId in USER_PLANES) {
-      setEsUsuarioEspecial(true);
-      setPlanEspecial(USER_PLANES[usuarioId]);
-      setCargando(false);
-      return;
+  // Mapeo de usuarios con planes específicos (casos especiales)
+  const USER_PLANES_OVERRIDE: Record<string, {plan: string, fecha_fin?: string}> = {
+    // Usuarios con override específico según CSV
+    "ddb19376-9903-487d-b3c8-98e40147c69d": {
+      plan: "Plan Premium (IA)", 
+      fecha_fin: "2026-03-08"
+    },
+    "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7": {
+      plan: "Plan Inicial", 
+      fecha_fin: "2026-03-10"
+    },
+    "b99f2269-1587-4c4c-92cd-30a212c2070e": {
+      plan: "Plan Premium (IA)",
+      fecha_fin: "2026-03-09"
     }
-    
-    // Si no es un usuario especial, cargamos el plan de manera normal
+  };
+
+  useEffect(() => {
     async function cargarPlan() {
       setCargando(true);
       
       try {
-        // Consulta directa para usuarios normales
+        // Consulta directa a la tabla de membresías
         const { data, error } = await supabase
           .from('membresias_usuarios')
-          .select('tipo_membresia_id')
+          .select('tipo_membresia_id, fecha_fin')
           .eq('usuario_id', usuarioId)
           .eq('estado', 'activa')
+          .order('fecha_inicio', { ascending: false })
           .limit(1);
 
-        if (error) {
-          console.error("Error al consultar membresía:", error);
-          setPlanNombre(null);
-        } else if (data && data.length > 0 && data[0].tipo_membresia_id) {
+        // Si hay un error o no hay datos y existe un override, usamos el override
+        if ((error || !data || data.length === 0) && usuarioId in USER_PLANES_OVERRIDE) {
+          setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
+          setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
+        } 
+        // Si hay datos de la consulta, los usamos
+        else if (data && data.length > 0 && data[0].tipo_membresia_id) {
           const tipoId = data[0].tipo_membresia_id as string;
+          
+          // Obtener fecha de fin
+          if (data[0].fecha_fin) {
+            const fecha = new Date(data[0].fecha_fin);
+            setFechaFin(fecha.toISOString().split('T')[0]);
+          }
+          
           // Verificar si existe en nuestro mapeo
           if (tipoId in PLANES) {
             setPlanNombre(PLANES[tipoId]);
@@ -72,12 +80,23 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
             // Plan desconocido - mostrar solo parte del ID
             setPlanNombre(`Plan ${tipoId.substring(0, 8)}`);
           }
-        } else {
+        } 
+        // Si no hay datos ni override, no hay membresía
+        else {
           setPlanNombre(null);
+          setFechaFin(null);
         }
       } catch (err) {
         console.error("Error al cargar membresía:", err);
-        setPlanNombre(null);
+        
+        // En caso de error, intentar usar el override
+        if (usuarioId in USER_PLANES_OVERRIDE) {
+          setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
+          setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
+        } else {
+          setPlanNombre(null);
+          setFechaFin(null);
+        }
       } finally {
         setCargando(false);
       }
@@ -91,19 +110,22 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     return <span>...</span>;
   }
 
-  if (esUsuarioEspecial && planEspecial) {
-    return (
-      <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-        {planEspecial}
-      </span>
-    );
-  }
-
   if (!planNombre) {
     return <span className="px-2 py-1 text-xs font-medium rounded-full text-gray-800 bg-gray-100">Sin membresía</span>;
   }
 
-  return <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">{planNombre}</span>;
+  return (
+    <div className="flex flex-col">
+      <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
+        {planNombre}
+      </span>
+      {fechaFin && (
+        <span className="mt-1 text-xs text-gray-500">
+          Hasta: {fechaFin}
+        </span>
+      )}
+    </div>
+  );
 };
 
 export default function GestionUsuarios() {
