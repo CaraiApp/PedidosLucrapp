@@ -12,256 +12,76 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
-// Componente simplificado para mostrar información de membresía directamente con SQL nativo
+// Componente ultrasimplificado que solo muestra el nombre del plan
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
-  const [planNombre, setPlanNombre] = useState<string | null>(null);
+  const [tipoMembresiaId, setTipoMembresiaId] = useState<string | null>(null);
   const [cargando, setCargando] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reparando, setReparando] = useState<boolean>(false);
 
-  // Los IDs de los planes conocidos según el SQL proporcionado
-  const PLANES_CONOCIDOS: Record<string, string> = {
-    "13fae609-2679-47fa-9731-e2f1badc4a61": "Plan Gratuito",
-    "24a34113-e011-4580-99fa-db1c91b60489": "Plan Pro",
-    "9e6ecc49-90a9-4952-8a00-55b12cd39df1": "Plan Premium (IA)",
-    "df6a192e-941e-415c-b152-2572dcba092c": "Plan Inicial"
-  };
+  // Mapeo manual y directo de IDs a nombres
+  function getNombrePlan(id: string): string {
+    switch(id) {
+      case "13fae609-2679-47fa-9731-e2f1badc4a61": return "Plan Gratuito";
+      case "24a34113-e011-4580-99fa-db1c91b60489": return "Plan Pro";
+      case "9e6ecc49-90a9-4952-8a00-55b12cd39df1": return "Plan Premium (IA)";
+      case "df6a192e-941e-415c-b152-2572dcba092c": return "Plan Inicial";
+      default: return "Plan ID: " + id.substring(0, 8);
+    }
+  }
 
-  // Función para cargar membresía con SQL directo (sin joins)
-  const cargarMembresia = async () => {
-    if (!usuarioId) return;
-    
-    setCargando(true);
-    setError(null);
-    
-    try {
-      // Consulta ultraligera - solo obtenemos el ID del tipo de membresía
-      const { data, error } = await supabase
-        .from('membresias_usuarios')
-        .select('tipo_membresia_id')
-        .eq('usuario_id', usuarioId)
-        .eq('estado', 'activa')
-        .order('fecha_inicio', { ascending: false })
-        .limit(1);
-      
-      if (error) {
-        console.error("Error al consultar membresía activa:", error);
-        setError(error.message);
-        return;
-      }
-      
-      if (data && data.length > 0 && data[0].tipo_membresia_id) {
-        const tipoMembresiaId = data[0].tipo_membresia_id;
-        console.log("Membresía activa encontrada:", tipoMembresiaId);
-        
-        // Buscar el nombre en nuestro mapa local (evita otra consulta)
-        if (PLANES_CONOCIDOS[tipoMembresiaId]) {
-          setPlanNombre(PLANES_CONOCIDOS[tipoMembresiaId]);
-        } else {
-          // Si no está en nuestro mapa, buscar en la BD (solo como fallback)
-          const { data: tipoData } = await supabase
-            .from('membresia_tipos')
-            .select('nombre')
-            .eq('id', tipoMembresiaId)
-            .single();
-          
-          setPlanNombre(tipoData?.nombre || "Plan " + tipoMembresiaId.substring(0, 8));
-        }
-      } else {
-        console.log("No se encontró membresía activa para el usuario", usuarioId);
-        setPlanNombre(null);
-      }
-    } catch (err: any) {
-      console.error("Error al cargar membresía:", err);
-      setError(err.message);
-    } finally {
-      setCargando(false);
-    }
-  };
-  
-  // Función para reparar membresía mediante SQL directo (super simplificada)
-  const repararMembresia = async () => {
-    if (!usuarioId || reparando) return;
-    
-    setReparando(true);
-    
-    try {
-      console.log("Reparando membresía para usuario:", usuarioId);
-      
-      // 1. Primera verificación: ¿hay membresías en estado 'activa'?
-      const { data: activas, error: errorActivas } = await supabase
-        .from('membresias_usuarios')
-        .select('id, tipo_membresia_id')
-        .eq('usuario_id', usuarioId)
-        .eq('estado', 'activa');
-      
-      if (errorActivas) throw errorActivas;
-      
-      if (activas && activas.length > 0) {
-        // Hay membresías activas - usar la primera
-        const membresiaActiva = activas[0];
-        console.log("Se encontró membresía activa:", membresiaActiva.id);
-        
-        // Actualizar referencia en el usuario
-        await supabase
-          .from('usuarios')
-          .update({ membresia_activa_id: membresiaActiva.id })
-          .eq('id', usuarioId);
-        
-        // Buscar nombre del plan
-        if (PLANES_CONOCIDOS[membresiaActiva.tipo_membresia_id]) {
-          setPlanNombre(PLANES_CONOCIDOS[membresiaActiva.tipo_membresia_id]);
-        } else {
-          const { data: tipoData } = await supabase
-            .from('membresia_tipos')
-            .select('nombre')
-            .eq('id', membresiaActiva.tipo_membresia_id)
-            .single();
-          
-          setPlanNombre(tipoData?.nombre || "Plan " + membresiaActiva.tipo_membresia_id.substring(0, 8));
-        }
-        
-        setCargando(false);
-        setReparando(false);
-        return;
-      }
-      
-      // 2. Si no hay activas, buscar cualquier membresía y activarla
-      const { data: inactivas, error: errorInactivas } = await supabase
-        .from('membresias_usuarios')
-        .select('id, tipo_membresia_id')
-        .eq('usuario_id', usuarioId)
-        .order('fecha_inicio', { ascending: false })
-        .limit(1);
-      
-      if (errorInactivas) throw errorInactivas;
-      
-      if (inactivas && inactivas.length > 0) {
-        // Hay membresías inactivas - activar la primera
-        const membresiaInactiva = inactivas[0];
-        console.log("Activando membresía inactiva:", membresiaInactiva.id);
-        
-        // Activar la membresía
-        await supabase
-          .from('membresias_usuarios')
-          .update({ estado: 'activa' })
-          .eq('id', membresiaInactiva.id);
-        
-        // Actualizar referencia en el usuario
-        await supabase
-          .from('usuarios')
-          .update({ membresia_activa_id: membresiaInactiva.id })
-          .eq('id', usuarioId);
-        
-        // Buscar nombre del plan
-        if (PLANES_CONOCIDOS[membresiaInactiva.tipo_membresia_id]) {
-          setPlanNombre(PLANES_CONOCIDOS[membresiaInactiva.tipo_membresia_id]);
-        } else {
-          setPlanNombre("Plan activado");
-        }
-      } else {
-        // 3. Si no hay ninguna membresía, crear una gratuita
-        console.log("No se encontraron membresías, creando membresía gratuita...");
-        
-        // Crear membresía gratuita
-        const fechaInicio = new Date().toISOString();
-        const fechaFin = new Date();
-        fechaFin.setFullYear(fechaFin.getFullYear() + 1);
-        
-        const { data: nuevaMembresia, error: errorCreacion } = await supabase
-          .from('membresias_usuarios')
-          .insert({
-            usuario_id: usuarioId,
-            tipo_membresia_id: '13fae609-2679-47fa-9731-e2f1badc4a61', // ID del Plan Gratuito
-            fecha_inicio: fechaInicio,
-            fecha_fin: fechaFin.toISOString(),
-            estado: 'activa'
-          })
-          .select('id')
-          .single();
-        
-        if (errorCreacion) throw errorCreacion;
-        
-        if (nuevaMembresia) {
-          // Actualizar referencia en el usuario
-          await supabase
-            .from('usuarios')
-            .update({ membresia_activa_id: nuevaMembresia.id })
-            .eq('id', usuarioId);
-          
-          setPlanNombre("Plan Gratuito");
-        }
-      }
-      
-      // Recargar datos (por si acaso algo falló)
-      await cargarMembresia();
-      
-    } catch (err: any) {
-      console.error("Error al reparar membresía:", err);
-      setError(err.message);
-    } finally {
-      setReparando(false);
-    }
-  };
-  
-  // Cargar la membresía al montar el componente
   useEffect(() => {
-    cargarMembresia();
+    // Consulta SQL mínima para encontrar membresía activa por usuario
+    const buscarMembresia = async () => {
+      setCargando(true);
+
+      try {
+        console.log(`Consultando membresía activa para usuario ${usuarioId}`);
+
+        const { data, error } = await supabase
+          .from('membresias_usuarios')
+          .select('tipo_membresia_id')
+          .eq('usuario_id', usuarioId)
+          .eq('estado', 'activa')
+          .limit(1);
+
+        if (error) {
+          console.error("Error consultando membresía:", error);
+          setTipoMembresiaId(null);
+        } else if (data && data.length > 0) {
+          console.log(`Membresía encontrada: ${data[0].tipo_membresia_id}`);
+          setTipoMembresiaId(data[0].tipo_membresia_id);
+        } else {
+          console.log("No se encontró membresía activa");
+          setTipoMembresiaId(null);
+        }
+      } catch (err) {
+        console.error("Error general:", err);
+        setTipoMembresiaId(null);
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    if (usuarioId) {
+      buscarMembresia();
+    }
   }, [usuarioId]);
-  
-  // Estados de la interfaz
+
   if (cargando) {
-    return <span className="italic text-gray-500 text-xs">Cargando...</span>;
+    return <span className="text-gray-400 text-xs">Cargando...</span>;
   }
-  
-  if (error) {
+
+  if (!tipoMembresiaId) {
     return (
-      <div className="flex items-center">
-        <span className="text-red-600 text-xs" title={error}>Error</span>
-        <button
-          onClick={repararMembresia}
-          disabled={reparando}
-          className="ml-2 text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
-          title="Intentar reparar membresía"
-        >
-          {reparando ? '...' : '🔄'}
-        </button>
-      </div>
-    );
-  }
-  
-  if (!planNombre) {
-    return (
-      <div className="flex items-center">
-        <span className="px-2 py-1 text-xs font-medium rounded-full text-gray-800 bg-gray-100">
-          Sin membresía
-        </span>
-        <button
-          onClick={repararMembresia}
-          disabled={reparando}
-          className="ml-2 text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
-          title="Activar membresía"
-        >
-          {reparando ? '...' : '🔄'}
-        </button>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="flex items-center">
-      <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-        {planNombre}
+      <span className="px-2 py-1 text-xs font-medium rounded-full text-gray-800 bg-gray-100">
+        Sin membresía
       </span>
-      <button
-        onClick={repararMembresia}
-        disabled={reparando}
-        className="ml-2 text-xs text-green-600 hover:text-green-800 disabled:opacity-50"
-        title="Verificar membresía"
-      >
-        {reparando ? '...' : '✓'}
-      </button>
-    </div>
+    );
+  }
+
+  return (
+    <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
+      {getNombrePlan(tipoMembresiaId)}
+    </span>
   );
 };
 
