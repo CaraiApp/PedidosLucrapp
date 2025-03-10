@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { SUPER_ADMIN_EMAIL, decryptAdminData } from '@/lib/admin/auth';
+import { AdminAuthProvider } from './auth';
 
 // Completamente client-side, sin SSR
 export const dynamic = 'force-dynamic';
@@ -142,9 +143,11 @@ export default function AdminLayout({
 }) {
   return (
     <div className="admin-layout">
-      <SecurityGuard>
-        {children}
-      </SecurityGuard>
+      <AdminAuthProvider>
+        <SecurityGuard>
+          {children}
+        </SecurityGuard>
+      </AdminAuthProvider>
     </div>
   );
 }
