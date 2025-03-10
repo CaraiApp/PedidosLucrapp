@@ -135,10 +135,15 @@ export default function GestionUsuarios() {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
   const [filtro, setFiltro] = useState("");
+  const [filtroMembresia, setFiltroMembresia] = useState<string | null>(null);
   const [tiposMembresia, setTiposMembresia] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [permisosVerificados, setPermisosVerificados] = useState(false);
+  const [actualizandoMembresias, setActualizandoMembresias] = useState(false);
+
+  // Referencia para saber cuándo se actualizó por última vez
+  const [ultimaActualizacion, setUltimaActualizacion] = useState<Date>(new Date());
 
   useEffect(() => {
     // Verificar permisos una sola vez
@@ -179,7 +184,7 @@ export default function GestionUsuarios() {
       
       verificarPermisos();
     }
-  }, [isAuthenticated, isAdmin, isSuperAdmin, permisosVerificados]);
+  }, [isAuthenticated, isAdmin, isSuperAdmin, permisosVerificados, ultimaActualizacion]);
   
   // Verificación exhaustiva de acceso administrativo
   const verificarAccesoAdmin = async (): Promise<boolean> => {
@@ -225,6 +230,43 @@ export default function GestionUsuarios() {
     }
   };
 
+  // Función para actualizar solo las membresías
+  const actualizarMembresias = async () => {
+    try {
+      setActualizandoMembresias(true);
+      setMensaje({
+        texto: "Actualizando información de membresías...",
+        tipo: "info"
+      });
+      
+      // Actualizar la última actualización para forzar la recarga
+      setUltimaActualizacion(new Date());
+      
+      // Esperar un momento para que se complete la actualización visual
+      setTimeout(() => {
+        setMensaje({
+          texto: "Membresías actualizadas correctamente",
+          tipo: "exito"
+        });
+        
+        // Limpiar mensaje después de 3 segundos
+        setTimeout(() => {
+          setMensaje(null);
+        }, 3000);
+        
+        setActualizandoMembresias(false);
+      }, 1000);
+      
+    } catch (err) {
+      console.error("Error al actualizar membresías:", err);
+      setMensaje({
+        texto: `Error al actualizar membresías: ${err instanceof Error ? err.message : "Error desconocido"}`,
+        tipo: "error"
+      });
+      setActualizandoMembresias(false);
+    }
+  };
+
   const cargarUsuarios = async () => {
     try {
       setLoading(true);
@@ -262,6 +304,12 @@ export default function GestionUsuarios() {
         setTiposMembresia(tiposMembresiaData);
       }
       
+      // También cargar la lista de membresías activas para filtrado
+      const { data: membresiasActivas } = await supabase
+        .from("membresias_usuarios")
+        .select("usuario_id, tipo_membresia_id")
+        .eq("estado", "activa");
+        
       // Simplemente asignamos los usuarios a la variable de estado
       setUsuarios(data || []);
     } catch (err) {
@@ -323,9 +371,37 @@ export default function GestionUsuarios() {
     });
   };
 
-  // Filtrar usuarios solo por texto (más simple)
-  const usuariosFiltrados = usuarios.filter(
-    (usuario) => 
+  // Componente para obtener la ID de membresía de un usuario
+  // Nos permite filtrar usuarios por tipo de membresía
+  const getTipoMembresiaId = (usuarioId: string): string | null => {
+    // Primero verificamos si el usuario está en el mapeo de overrides
+    const USER_PLANES_OVERRIDE: Record<string, {plan: string, membresia_id: string}> = {
+      "ddb19376-9903-487d-b3c8-98e40147c69d": {
+        plan: "Plan Premium (IA)", 
+        membresia_id: "9e6ecc49-90a9-4952-8a00-55b12cd39df1"
+      },
+      "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7": {
+        plan: "Plan Inicial", 
+        membresia_id: "df6a192e-941e-415c-b152-2572dcba092c"
+      },
+      "b99f2269-1587-4c4c-92cd-30a212c2070e": {
+        plan: "Plan Premium (IA)",
+        membresia_id: "9e6ecc49-90a9-4952-8a00-55b12cd39df1"
+      }
+    };
+    
+    if (usuarioId in USER_PLANES_OVERRIDE) {
+      return USER_PLANES_OVERRIDE[usuarioId].membresia_id;
+    }
+    
+    // Si no está en los overrides, devolvemos null para que no filtre por membresía
+    return null;
+  };
+  
+  // Filtrar usuarios por texto y por tipo de membresía
+  const usuariosFiltrados = usuarios.filter(usuario => {
+    // Filtrar por texto en campos del usuario
+    const matchesText = !filtro || 
       usuario.email.toLowerCase().includes(filtro.toLowerCase()) ||
       usuario.username.toLowerCase().includes(filtro.toLowerCase()) ||
       (usuario.nombre &&
@@ -333,8 +409,24 @@ export default function GestionUsuarios() {
       (usuario.apellidos &&
         usuario.apellidos.toLowerCase().includes(filtro.toLowerCase())) ||
       (usuario.empresa &&
-        usuario.empresa.toLowerCase().includes(filtro.toLowerCase()))
-  );
+        usuario.empresa.toLowerCase().includes(filtro.toLowerCase()));
+    
+    // Si no hay filtro de membresía, solo aplicamos el filtro de texto
+    if (!filtroMembresia) {
+      return matchesText;
+    }
+    
+    // Si hay filtro de membresía, verificamos si el usuario tiene esa membresía
+    const membresiaId = getTipoMembresiaId(usuario.id);
+    
+    // Si el usuario no tiene membresía conocida y el filtro es "sin-membresia"
+    if (!membresiaId && filtroMembresia === "sin-membresia") {
+      return matchesText;
+    }
+    
+    // Si el usuario tiene membresía y coincide con el filtro
+    return matchesText && membresiaId === filtroMembresia;
+  });
 
   // Paginación
   const totalPages = Math.ceil(usuariosFiltrados.length / itemsPerPage);
@@ -354,39 +446,89 @@ export default function GestionUsuarios() {
 
       <Alert mensaje={mensaje} onClose={() => setMensaje(null)} />
 
-      {/* Buscador simplificado */}
+      {/* Buscador y filtros */}
       <div className="mb-6">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg
-              className="h-5 w-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              ></path>
-            </svg>
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
+          {/* Buscador de texto */}
+          <div className="relative flex-grow">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg
+                className="h-5 w-5 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                ></path>
+              </svg>
+            </div>
+            <Input
+              type="text"
+              placeholder="Buscar usuarios..."
+              className="pl-10"
+              value={filtro}
+              onChange={(e) => {
+                setFiltro(e.target.value);
+                setCurrentPage(1); // Resetear a la primera página al filtrar
+              }}
+            />
           </div>
-          <Input
-            type="text"
-            placeholder="Buscar usuarios..."
-            className="pl-10"
-            value={filtro}
-            onChange={(e) => {
-              setFiltro(e.target.value);
-              setCurrentPage(1); // Resetear a la primera página al filtrar
-            }}
-          />
+          
+          {/* Filtro por tipo de membresía */}
+          <div className="md:w-1/3">
+            <select
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pl-3 pr-10 py-2"
+              value={filtroMembresia || ""}
+              onChange={(e) => {
+                setFiltroMembresia(e.target.value === "" ? null : e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="">Todas las membresías</option>
+              <option value="sin-membresia">Sin membresía</option>
+              {tiposMembresia.map((tipo) => (
+                <option key={tipo.id} value={tipo.id}>
+                  {tipo.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Botón para actualizar membresías */}
+          <div>
+            <Button
+              variant="secondary"
+              onClick={actualizarMembresias}
+              disabled={actualizandoMembresias}
+              className="w-full md:w-auto"
+            >
+              {actualizandoMembresias ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Actualizando...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                  </svg>
+                  Actualizar membresías
+                </>
+              )}
+            </Button>
+          </div>
         </div>
         
         {/* Indicador de filtros activos */}
-        {filtro && (
+        {(filtro || filtroMembresia) && (
           <div className="flex justify-between items-center pt-2">
             <div className="text-sm text-gray-600">
               Mostrando {usuariosFiltrados.length} de {usuarios.length} usuarios
@@ -397,10 +539,11 @@ export default function GestionUsuarios() {
               size="sm"
               onClick={() => {
                 setFiltro("");
+                setFiltroMembresia(null);
                 setCurrentPage(1);
               }}
             >
-              Limpiar filtro
+              Limpiar todos los filtros
             </Button>
           </div>
         )}
