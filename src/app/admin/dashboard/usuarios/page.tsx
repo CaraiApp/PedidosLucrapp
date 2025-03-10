@@ -56,10 +56,60 @@ const MembresiaInfo = ({ usuarioId, actualizacion }: { usuarioId: string, actual
     console.log(`Cargando membresía para usuario ${usuarioId}...`);
     
     try {
-      // Consulta directa a la tabla de membresías
+      // Verificar primero si el usuario tiene un override definido
+      if (usuarioId in USER_PLANES_OVERRIDE) {
+        setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
+        setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
+        setEstado(USER_PLANES_OVERRIDE[usuarioId].estado || "activa");
+        console.log("Usando override para usuario:", usuarioId);
+        setCargando(false);
+        return;
+      }
+      
+      // Intentar usar la función RPC de Supabase si está disponible
+      try {
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_user_active_membership', { user_id: usuarioId });
+          
+        if (!rpcError && rpcData) {
+          // Extraer información del resultado JSON de la función
+          const tipoMembresia = rpcData.tipo_membresia;
+          
+          setPlanNombre(tipoMembresia?.nombre || "Plan Desconocido");
+          
+          if (rpcData.fecha_fin) {
+            const fecha = new Date(rpcData.fecha_fin);
+            setFechaFin(fecha.toISOString().split('T')[0]);
+          }
+          
+          setEstado(rpcData.estado || null);
+          
+          console.log("Membresía obtenida mediante RPC:", {
+            plan: tipoMembresia?.nombre,
+            fechaFin: rpcData.fecha_fin,
+            estado: rpcData.estado
+          });
+          
+          setCargando(false);
+          return;
+        }
+      } catch (rpcErr) {
+        console.log("Error al usar RPC:", rpcErr);
+        // Continuar con el método alternativo
+      }
+      
+      // Si la función RPC falla, usamos la consulta directa
       const { data, error } = await supabase
         .from('membresias_usuarios')
-        .select('tipo_membresia_id, fecha_fin, estado')
+        .select(`
+          tipo_membresia_id,
+          fecha_fin,
+          estado,
+          tipo_membresia:membresia_tipos(
+            id,
+            nombre
+          )
+        `)
         .eq('usuario_id', usuarioId)
         .eq('estado', 'activa')
         .order('fecha_inicio', { ascending: false })
@@ -67,16 +117,23 @@ const MembresiaInfo = ({ usuarioId, actualizacion }: { usuarioId: string, actual
 
       console.log("Respuesta de la consulta de membresía:", { data, error });
 
-      // Si hay un error o no hay datos y existe un override, usamos el override
-      if ((error || !data || data.length === 0) && usuarioId in USER_PLANES_OVERRIDE) {
-        setPlanNombre(USER_PLANES_OVERRIDE[usuarioId].plan);
-        setFechaFin(USER_PLANES_OVERRIDE[usuarioId].fecha_fin || null);
-        setEstado(USER_PLANES_OVERRIDE[usuarioId].estado || "activa");
-        console.log("Usando override para usuario:", usuarioId);
-      } 
       // Si hay datos de la consulta, los usamos
-      else if (data && data.length > 0 && data[0].tipo_membresia_id) {
-        const tipoId = data[0].tipo_membresia_id as string;
+      if (data && data.length > 0) {
+        // Usamos el nombre directamente desde la relación
+        if (data[0].tipo_membresia && data[0].tipo_membresia.nombre) {
+          setPlanNombre(data[0].tipo_membresia.nombre);
+        } 
+        // O usamos el mapeo por ID si no está disponible el nombre
+        else if (data[0].tipo_membresia_id) {
+          const tipoId = data[0].tipo_membresia_id as string;
+          
+          if (tipoId in PLANES) {
+            setPlanNombre(PLANES[tipoId]);
+          } else {
+            // Plan desconocido - mostrar solo parte del ID
+            setPlanNombre(`Plan ${tipoId.substring(0, 8)}`);
+          }
+        }
         
         // Obtener fecha de fin
         if (data[0].fecha_fin) {
@@ -87,21 +144,13 @@ const MembresiaInfo = ({ usuarioId, actualizacion }: { usuarioId: string, actual
         // Obtener estado
         setEstado(data[0].estado || null);
         
-        // Verificar si existe en nuestro mapeo
-        if (tipoId in PLANES) {
-          setPlanNombre(PLANES[tipoId]);
-        } else {
-          // Plan desconocido - mostrar solo parte del ID
-          setPlanNombre(`Plan ${tipoId.substring(0, 8)}`);
-        }
-        
         console.log("Datos de membresía obtenidos:", {
-          plan: PLANES[tipoId] || `Plan ${tipoId.substring(0, 8)}`,
+          plan: data[0].tipo_membresia?.nombre || PLANES[data[0].tipo_membresia_id] || `Plan ${data[0].tipo_membresia_id.substring(0, 8)}`,
           fechaFin: data[0].fecha_fin,
           estado: data[0].estado
         });
       } 
-      // Si no hay datos ni override, no hay membresía
+      // Si no hay datos, no hay membresía
       else {
         setPlanNombre(null);
         setFechaFin(null);
