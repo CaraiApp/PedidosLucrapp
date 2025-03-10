@@ -15,7 +15,7 @@ import { useAdminAuth } from "../../auth";
 // Componente ultra básico que simplemente muestra texto estático para usuarios específicos
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   // Mapeo directo ID de usuario -> Plan membresía (HARDCODEADO)
-  const USER_PLANES = {
+  const USER_PLANES: Record<string, string> = {
     // ID verificado que funciona correctamente
     "ddb19376-9903-487d-b3c8-98e40147c69d": "Plan Gratuito", 
     
@@ -25,7 +25,7 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   };
 
   // Si es uno de los usuarios problemáticos, mostrar directamente
-  if (USER_PLANES[usuarioId]) {
+  if (usuarioId in USER_PLANES) {
     return (
       <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
         {USER_PLANES[usuarioId]}
@@ -34,10 +34,10 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   }
 
   const [planNombre, setPlanNombre] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [cargando, setCargando] = useState<boolean>(true);
 
   // Mapeo de IDs de planes
-  const PLANES = {
+  const PLANES: Record<string, string> = {
     "13fae609-2679-47fa-9731-e2f1badc4a61": "Plan Gratuito",
     "24a34113-e011-4580-99fa-db1c91b60489": "Plan Pro",
     "9e6ecc49-90a9-4952-8a00-55b12cd39df1": "Plan Premium (IA)",
@@ -62,8 +62,14 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
           console.error("Error al consultar membresía:", error);
           setPlanNombre(null);
         } else if (data && data.length > 0 && data[0].tipo_membresia_id) {
-          const tipoId = data[0].tipo_membresia_id;
-          setPlanNombre(PLANES[tipoId] || `Plan ${tipoId.substring(0, 8)}`);
+          const tipoId = data[0].tipo_membresia_id as string;
+          // Verificar si existe en nuestro mapeo
+          if (tipoId in PLANES) {
+            setPlanNombre(PLANES[tipoId]);
+          } else {
+            // Plan desconocido - mostrar solo parte del ID
+            setPlanNombre(`Plan ${tipoId.substring(0, 8)}`);
+          }
         } else {
           setPlanNombre(null);
         }
