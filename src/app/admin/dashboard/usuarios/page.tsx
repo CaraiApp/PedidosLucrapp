@@ -1,7 +1,7 @@
 // src/app/admin/dashboard/usuarios/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Usuario, Mensaje } from "@/types";
 import Alert from "@/components/ui/Alert";
