@@ -14,121 +14,23 @@ import { useAdminAuth } from "../../auth";
 
 // Componente que muestra la membresía activa de un usuario
 const MembresiaInfo = ({ usuarioId, actualizacion }: { usuarioId: string, actualizacion?: Date }) => {
-  // Esta es una implementación hardcoded para solucionar el problema de las membresías
-  
-  // Hardcodear la información exacta para cada usuario específico
-  if (usuarioId === "ddb19376-9903-487d-b3c8-98e40147c69d") {
-    return (
-      <div className="flex flex-col">
-        <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-          Plan Premium (IA)
-        </span>
-        <div className="flex flex-col mt-1">
-          <span className="text-xs text-gray-500">
-            Hasta: 2026-03-08
-          </span>
-          <span className="text-xs text-green-600">
-            Estado: Activa
-          </span>
-        </div>
-      </div>
-    );
-  } 
-  else if (usuarioId === "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7") {
-    return (
-      <div className="flex flex-col">
-        <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-          Plan Inicial
-        </span>
-        <div className="flex flex-col mt-1">
-          <span className="text-xs text-gray-500">
-            Hasta: 2026-03-10
-          </span>
-          <span className="text-xs text-green-600">
-            Estado: Activa
-          </span>
-        </div>
-      </div>
-    );
-  }
-  else if (usuarioId === "b99f2269-1587-4c4c-92cd-30a212c2070e") {
-    return (
-      <div className="flex flex-col">
-        <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-          Plan Premium (IA)
-        </span>
-        <div className="flex flex-col mt-1">
-          <span className="text-xs text-gray-500">
-            Hasta: 2026-03-09
-          </span>
-          <span className="text-xs text-green-600">
-            Estado: Activa
-          </span>
-        </div>
-      </div>
-    );
-  }
-  
-  // Para otros usuarios, implementar una versión simplificada
-  const [planNombre, setPlanNombre] = useState<string | null>(null);
+  const [membresiaInfo, setMembresiaInfo] = useState<any>(null);
   const [cargando, setCargando] = useState<boolean>(true);
-  const [fechaFin, setFechaFin] = useState<string | null>(null);
-  const [estado, setEstado] = useState<string | null>(null);
 
-  // Mapeo actualizado de IDs de planes utilizando la información de la base de datos
-  const PLANES: Record<string, string> = {
-    "13fae609-2679-47fa-9731-e2f1badc4a61": "Plan Gratuito",
-    "24a34113-e011-4580-99fa-db1c91b60489": "Plan Pro",
-    "9e6ecc49-90a9-4952-8a00-55b12cd39df1": "Plan Premium (IA)",
-    "df6a192e-941e-415c-b152-2572dcba092c": "Plan Inicial"
-  };
-
-  // Esta función hará una consulta fresca a la base de datos
+  // Esta función usa el MembershipService para obtener los datos directamente 
   const cargarPlan = async () => {
     setCargando(true);
     
     try {
-      // Consulta directa a la tabla
-      const { data, error } = await supabase
-        .from('membresias_usuarios')
-        .select('tipo_membresia_id, fecha_fin, estado')
-        .eq('usuario_id', usuarioId)
-        .eq('estado', 'activa')
-        .order('fecha_inicio', { ascending: false })
-        .limit(1);
-
-      // Si hay datos de la consulta, los usamos
-      if (data && data.length > 0 && data[0].tipo_membresia_id) {
-        const tipoId = data[0].tipo_membresia_id as string;
-        
-        // Obtener fecha de fin
-        if (data[0].fecha_fin) {
-          const fecha = new Date(data[0].fecha_fin);
-          setFechaFin(fecha.toISOString().split('T')[0]);
-        }
-        
-        // Obtener estado
-        setEstado(data[0].estado || null);
-        
-        // Verificar si existe en nuestro mapeo
-        if (tipoId in PLANES) {
-          setPlanNombre(PLANES[tipoId]);
-        } else {
-          // Plan desconocido - mostrar solo parte del ID
-          setPlanNombre(`Plan ${tipoId.substring(0, 8)}`);
-        }
-      } 
-      // Si no hay datos, no hay membresía
-      else {
-        setPlanNombre(null);
-        setFechaFin(null);
-        setEstado(null);
-      }
+      // Importar el servicio dinámicamente para evitar problemas con SSR
+      const { MembershipService } = await import('@/lib/membership-service');
+      
+      // Usar el servicio centralizado para obtener la información de membresía
+      const membresia = await MembershipService.getActiveMembership(usuarioId);
+      
+      setMembresiaInfo(membresia);
     } catch (err) {
       console.error("Error al cargar membresía:", err);
-      setPlanNombre(null);
-      setFechaFin(null);
-      setEstado(null);
     } finally {
       setCargando(false);
     }
@@ -144,30 +46,29 @@ const MembresiaInfo = ({ usuarioId, actualizacion }: { usuarioId: string, actual
     return <span>...</span>;
   }
 
-  if (!planNombre) {
+  if (!membresiaInfo) {
     return <span className="px-2 py-1 text-xs font-medium rounded-full text-gray-800 bg-gray-100">Sin membresía</span>;
   }
 
+  // Formatear fecha si es necesario
+  const formatearFecha = (fecha: string) => {
+    if (!fecha) return "";
+    const date = new Date(fecha);
+    return date.toISOString().split('T')[0];
+  };
+
   return (
     <div className="flex flex-col">
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-        estado === 'activa' ? 'text-green-800 bg-green-100' : 'text-orange-800 bg-orange-100'
-      }`}>
-        {planNombre} {estado !== 'activa' && `(${estado || 'inactiva'})`}
+      <span className={`px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100`}>
+        {membresiaInfo.tipo_membresia?.nombre || `Plan ${membresiaInfo.tipo_membresia_id?.substring(0, 8)}...`}
       </span>
       <div className="flex flex-col mt-1">
-        {fechaFin && (
-          <span className="text-xs text-gray-500">
-            Hasta: {fechaFin}
-          </span>
-        )}
-        {estado && (
-          <span className={`text-xs ${
-            estado === 'activa' ? 'text-green-600' : 'text-orange-600'
-          }`}>
-            Estado: {estado === 'activa' ? 'Activa' : estado}
-          </span>
-        )}
+        <span className="text-xs text-gray-500">
+          Hasta: {formatearFecha(membresiaInfo.fecha_fin)}
+        </span>
+        <span className="text-xs text-green-600">
+          Estado: {membresiaInfo.estado === 'activa' ? 'Activa' : membresiaInfo.estado}
+        </span>
       </div>
     </div>
   );
@@ -673,37 +574,10 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {/* SOLUCIÓN HARDCODED PARA MOSTRAR CORRECTAMENTE EL ESTADO DE LAS MEMBRESÍAS */}
-                        {usuario.id === "ddb19376-9903-487d-b3c8-98e40147c69d" ? (
-                          <div className="flex flex-col">
-                            <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">Plan Premium (IA)</span>
-                            <div className="flex flex-col mt-1">
-                              <span className="text-xs text-gray-500">Hasta: 2026-03-08</span>
-                              <span className="text-xs text-green-600">Estado: Activa</span>
-                            </div>
-                          </div>
-                        ) : usuario.id === "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7" ? (
-                          <div className="flex flex-col">
-                            <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">Plan Inicial</span>
-                            <div className="flex flex-col mt-1">
-                              <span className="text-xs text-gray-500">Hasta: 2026-03-10</span>
-                              <span className="text-xs text-green-600">Estado: Activa</span>
-                            </div>
-                          </div>
-                        ) : usuario.id === "b99f2269-1587-4c4c-92cd-30a212c2070e" ? (
-                          <div className="flex flex-col">
-                            <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">Plan Premium (IA)</span>
-                            <div className="flex flex-col mt-1">
-                              <span className="text-xs text-gray-500">Hasta: 2026-03-09</span>
-                              <span className="text-xs text-green-600">Estado: Activa</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <MembresiaInfo 
-                            usuarioId={usuario.id}
-                            actualizacion={ultimaActualizacion}
-                          />
-                        )}
+                        <MembresiaInfo 
+                          usuarioId={usuario.id}
+                          actualizacion={ultimaActualizacion}
+                        />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatearFecha(usuario.created_at)}
