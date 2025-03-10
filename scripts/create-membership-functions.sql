@@ -20,6 +20,7 @@ RETURNS JSONB AS $$$
 DECLARE
     result JSONB;
 BEGIN
+    -- Esta es exactamente la misma consulta que se usa en /perfil/membresia
     SELECT jsonb_build_object(
         'id', mu.id,
         'tipo_membresia_id', mu.tipo_membresia_id,
