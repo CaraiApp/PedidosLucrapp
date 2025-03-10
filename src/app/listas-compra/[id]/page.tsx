@@ -71,10 +71,22 @@ export default function DetalleListaCompraPage() {
           return;
         }
 
+        // Importar el servicio de membresía para verificar si tiene acceso a esta funcionalidad
+        const { MembershipService } = await import('@/lib/membership-service');
+        
+        // Verificar si el usuario tiene membresía activa
+        const membresiaActiva = await MembershipService.getActiveMembership(sessionData.session.user.id);
+        
+        // Si no tiene una membresía activa, intentar repararla
+        if (!membresiaActiva && sessionData.session.user.id) {
+          console.log("No se encontró membresía activa, intentando reparar...");
+          await MembershipService.fixMembership(sessionData.session.user.id);
+        }
+
         // Obtener datos del usuario actual
         const { data: userData, error: userError } = await supabase
           .from("usuarios")
-          .select("nombre, empresa")
+          .select("nombre, empresa, membresia_activa_id")
           .eq("id", sessionData.session.user.id)
           .single();
 

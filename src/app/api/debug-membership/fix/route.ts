@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
     ) : [];
     
     if (otherActiveMemberships && otherActiveMemberships.length > 0) {
+      console.log(`Desactivando ${otherActiveMemberships.length} membresías redundantes`);
       const idsToDeactivate = otherActiveMemberships.map(m => m.id);
       
       const { error: deactivateError } = await supabaseAdmin
@@ -192,11 +193,81 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // 9. Sincronizar referencia en tabla users si también existe
+    try {
+      console.log(`Verificando y actualizando referencia en tabla auth.users`);
+      
+      // Obtener el registro del usuario en la tabla auth.users
+      const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(userId);
+      
+      if (authUserError) {
+        console.error("Error al obtener usuario de auth:", authUserError);
+      } else if (authUser?.user) {
+        // Verificar si existe la tabla de mapeo user_id -> membresia_activa_id
+        const { data: userMapData, error: userMapError } = await supabaseAdmin
+          .from("user_memberships")
+          .select("*")
+          .eq("user_id", authUser.user.id)
+          .single();
+          
+        if (userMapError && !userMapError.message.includes("No rows found")) {
+          console.error("Error al verificar mapeo de usuarios:", userMapError);
+        } else if (!userMapData) {
+          // Crear el mapeo si no existe
+          await supabaseAdmin
+            .from("user_memberships")
+            .insert({
+              user_id: authUser.user.id,
+              membresia_id: targetMembership.id
+            });
+        } else {
+          // Actualizar el mapeo si existe
+          await supabaseAdmin
+            .from("user_memberships")
+            .update({ membresia_id: targetMembership.id })
+            .eq("user_id", authUser.user.id);
+        }
+      }
+    } catch (authError) {
+      console.error("Error al sincronizar con auth.users:", authError);
+      // No fallamos el proceso completo por este error
+    }
+    
+    // 10. Intentar crear la función RPC si no existe
+    try {
+      console.log("Verificando función RPC para optimizar consultas futuras...");
+      
+      // Ver si la función ya existe
+      const { data: rpcTestData, error: rpcTestError } = await supabaseAdmin
+        .rpc('get_user_active_membership', { user_id: userId });
+        
+      if (rpcTestError && rpcTestError.message.includes("does not exist")) {
+        console.log("Creando función RPC get_user_active_membership...");
+        
+        // Ejecutar SQL para crear la función (esto requiere permisos de admin)
+        const { error: createRpcError } = await supabaseAdmin.rpc('create_membership_function');
+        
+        if (createRpcError) {
+          console.error("Error al crear función RPC:", createRpcError);
+        } else {
+          console.log("Función RPC creada exitosamente");
+        }
+      }
+    } catch (rpcError) {
+      console.error("Error al verificar/crear función RPC:", rpcError);
+      // No fallamos el proceso completo por este error
+    }
+    
     return NextResponse.json({
       success: true,
       message: "Membresía corregida exitosamente",
       updatedMembership: targetMembership,
-      deactivatedCount: otherActiveMemberships?.length || 0
+      deactivatedCount: otherActiveMemberships?.length || 0,
+      user: {
+        id: userId,
+        email: userData.email,
+        membresia_activa_id: targetMembership.id
+      }
     });
     
   } catch (error: any) {

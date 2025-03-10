@@ -44,23 +44,13 @@ export function useAuth() {
           
         // Si obtenemos el usuario correctamente, intentamos obtener su membresía activa
         if (!userError && userData) {
-          // MODIFICACIÓN IMPORTANTE: Buscamos siempre la membresía activa por estado, no por ID
-          console.log("Buscando membresía activa directamente por estado, sin depender del ID almacenado");
+          // Usar el servicio centralizado para obtener la membresía
+          console.log("Buscando membresía activa usando el servicio centralizado");
           
-          // Obtener la membresía activa del usuario buscando por estado 'activa'
-          const { data: membresiaData, error: membresiaError } = await supabase
-            .from('membresias_usuarios')
-            .select(`
-              id,
-              tipo_membresia:membresia_tipos(*),
-              fecha_inicio,
-              fecha_fin,
-              estado
-            `)
-            .eq('usuario_id', userData.id)
-            .eq('estado', 'activa')
-            .order('fecha_inicio', { ascending: false })
-            .maybeSingle();
+          // Importar dinámicamente para evitar problemas de dependencia circular
+          const { MembershipService } = await import('@/lib/membership-service');
+          const membresiaData = await MembershipService.getActiveMembership(userData.id);
+          const membresiaError = null; // El servicio ya maneja los errores internamente
           
           if (!membresiaError && membresiaData) {
             // Si encontramos una membresía activa, la asignamos al usuario

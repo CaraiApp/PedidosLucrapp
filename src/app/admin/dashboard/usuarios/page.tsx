@@ -12,73 +12,134 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
-// Componente básico para mostrar información de membresía
-const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
-  const [planID, setPlanID] = useState<string | null>(null);
-  const [nombrePlan, setNombrePlan] = useState<string | null>(null);
-  const [cargando, setCargando] = useState<boolean>(true);
+import { MembershipService } from '@/lib/membership-service';
 
-  useEffect(() => {
-    const cargarMembresia = async () => {
-      setCargando(true);
-      
-      // CONSULTA SIMPLE: Obtener todas las membresías ACTIVAS del usuario
-      const { data, error } = await supabase
-        .from('membresias_usuarios')
-        .select('tipo_membresia_id')
-        .eq('usuario_id', usuarioId)
-        .eq('estado', 'activa')
-        .limit(1);
-      
-      if (error) {
-        console.error("Error básico:", error);
-        setCargando(false);
-        return;
-      }
-      
-      // Si no tiene membresía activa
-      if (!data || data.length === 0) {
-        setCargando(false);
-        return;
-      }
-      
-      // Guardar el ID del tipo de membresía
-      const tipoMembresiaId = data[0].tipo_membresia_id;
-      setPlanID(tipoMembresiaId);
-      
-      // Consultar el nombre del tipo de membresía
-      const { data: tipoData, error: tipoError } = await supabase
-        .from('membresia_tipos')
-        .select('nombre')
-        .eq('id', tipoMembresiaId)
-        .single();
-      
-      if (tipoError) {
-        console.error("Error al obtener tipo:", tipoError);
-        setCargando(false);
-        return;
-      }
-      
-      // Guardar el nombre del plan
-      if (tipoData) {
-        setNombrePlan(tipoData.nombre);
-      }
-      
-      setCargando(false);
-    };
+// Componente mejorado para mostrar información de membresía usando el servicio centralizado
+const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
+  const [membresia, setMembresia] = useState<any | null>(null);
+  const [cargando, setCargando] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reparando, setReparando] = useState<boolean>(false);
+
+  // Función para cargar la membresía
+  const cargarMembresia = async () => {
+    if (!usuarioId) return;
     
+    setCargando(true);
+    setError(null);
+    
+    try {
+      console.log(`Cargando membresía para usuario: ${usuarioId}`);
+      
+      // Usar el servicio centralizado
+      const membresiaActiva = await MembershipService.getActiveMembership(usuarioId);
+      
+      if (membresiaActiva) {
+        console.log("Membresía activa encontrada:", membresiaActiva.id);
+        setMembresia(membresiaActiva);
+      } else {
+        console.log("No se encontró membresía activa para el usuario");
+        setMembresia(null);
+      }
+    } catch (err: any) {
+      console.error("Error al cargar membresía:", err);
+      setError(err.message || "Error desconocido");
+    } finally {
+      setCargando(false);
+    }
+  };
+  
+  // Función para reparar la membresía
+  const repararMembresia = async () => {
+    if (!usuarioId || reparando) return;
+    
+    setReparando(true);
+    
+    try {
+      console.log(`Reparando membresía para usuario: ${usuarioId}`);
+      
+      // Usar el servicio de reparación
+      const resultado = await MembershipService.fixMembership(usuarioId);
+      
+      if (resultado.success) {
+        console.log("Membresía reparada exitosamente");
+        
+        // Recargar la membresía después de reparar
+        await cargarMembresia();
+      } else {
+        console.error("Error al reparar membresía:", resultado.message);
+        setError("Error al reparar: " + resultado.message);
+      }
+    } catch (err: any) {
+      console.error("Error en reparación de membresía:", err);
+      setError(err.message || "Error en reparación");
+    } finally {
+      setReparando(false);
+    }
+  };
+  
+  // Cargar la membresía al montar el componente
+  useEffect(() => {
     cargarMembresia();
   }, [usuarioId]);
   
+  // Estado de carga
   if (cargando) {
-    return <span>Cargando...</span>;
+    return <span className="italic text-gray-500 text-xs">Cargando...</span>;
   }
   
-  if (!planID) {
-    return <span>Sin membresía</span>;
+  // Estado de error
+  if (error) {
+    return (
+      <div className="flex items-center">
+        <span className="text-red-600 text-xs" title={error}>Error</span>
+        <button
+          onClick={repararMembresia}
+          disabled={reparando}
+          className="ml-2 text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+          title="Intentar reparar membresía"
+        >
+          {reparando ? '...' : '🔄'}
+        </button>
+      </div>
+    );
   }
   
-  return <span>{nombrePlan || planID}</span>;
+  // Sin membresía
+  if (!membresia) {
+    return (
+      <div className="flex items-center">
+        <span className="px-2 py-1 text-xs font-medium rounded-full text-gray-800 bg-gray-100">
+          Sin membresía
+        </span>
+        <button
+          onClick={repararMembresia}
+          disabled={reparando}
+          className="ml-2 text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+          title="Verificar membresía"
+        >
+          {reparando ? '...' : '🔄'}
+        </button>
+      </div>
+    );
+  }
+  
+  // Mostrar membresía activa
+  return (
+    <div className="flex items-center">
+      <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
+        {membresia.tipo_membresia?.nombre || "Plan desconocido"}
+      </span>
+      <button
+        onClick={repararMembresia}
+        disabled={reparando}
+        className="ml-2 text-xs text-green-600 hover:text-green-800 disabled:opacity-50"
+        title="Verificar membresía"
+      >
+        {reparando ? '...' : '✓'}
+      </button>
+    </div>
+  );
 };
 
 export default function GestionUsuarios() {
@@ -438,9 +499,7 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          <MembresiaInfo usuarioId={usuario.id} />
-                        </span>
+                        <MembresiaInfo usuarioId={usuario.id} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatearFecha(usuario.created_at)}
