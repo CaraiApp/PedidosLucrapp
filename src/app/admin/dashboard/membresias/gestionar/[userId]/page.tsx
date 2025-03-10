@@ -497,10 +497,17 @@ export default function GestionarMembresia() {
                 </p>
                 <p className="text-sm text-gray-600 mb-1">
                   <span className="font-medium">Tipo: </span> 
-                  <span className="font-mono">
-                    {usuario.membresia_activa.tipo_membresia_id ? 
-                      usuario.membresia_activa.tipo_membresia_id.substring(0, 8) + "..." :
-                      "ID no disponible"}
+                  <span>
+                    {usuario.membresia_activa.tipo_membresia?.nombre || 
+                     (usuario.membresia_activa.tipo_membresia_id ? 
+                      "Plan " + usuario.membresia_activa.tipo_membresia_id.substring(0, 8) + "..." :
+                      "Plan desconocido")}
+                  </span>
+                </p>
+                <p className="text-sm text-gray-600 mb-1">
+                  <span className="font-medium">Estado: </span> 
+                  <span className="text-green-600 font-medium">
+                    {usuario.membresia_activa.estado || "activa"}
                   </span>
                 </p>
                 <p className="text-sm text-gray-600 mb-1">
@@ -520,6 +527,16 @@ export default function GestionarMembresia() {
               <p className="text-sm text-gray-500 italic">Sin membresía activa</p>
             )}
           </div>
+          
+          {/* Mensaje especial para usuarios especiales */}
+          {(userId === "ddb19376-9903-487d-b3c8-98e40147c69d" || 
+            userId === "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7" || 
+            userId === "b99f2269-1587-4c4c-92cd-30a212c2070e") && (
+            <div className="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+              <p className="font-semibold">Usuario con membresía especial</p>
+              <p className="mt-1">Este usuario tiene una membresía premium especial configurada manualmente.</p>
+            </div>
+          )}
         </Card>
 
         {/* Formulario de asignación de membresía */}
