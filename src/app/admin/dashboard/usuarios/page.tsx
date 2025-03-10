@@ -14,6 +14,12 @@ import { useAdminAuth } from "../../auth";
 
 // Componente ultra básico que simplemente muestra texto estático para usuarios específicos
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
+  // Always declare hooks at the top level of the component
+  const [planNombre, setPlanNombre] = useState<string | null>(null);
+  const [cargando, setCargando] = useState<boolean>(true);
+  const [esUsuarioEspecial, setEsUsuarioEspecial] = useState<boolean>(false);
+  const [planEspecial, setPlanEspecial] = useState<string | null>(null);
+
   // Mapeo directo ID de usuario -> Plan membresía (HARDCODEADO)
   const USER_PLANES: Record<string, string> = {
     // ID verificado que funciona correctamente
@@ -24,18 +30,6 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     "b99f2269-1587-4c4c-92cd-30a212c2070e": "Plan Gratuito"
   };
 
-  // Si es uno de los usuarios problemáticos, mostrar directamente
-  if (usuarioId in USER_PLANES) {
-    return (
-      <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
-        {USER_PLANES[usuarioId]}
-      </span>
-    );
-  }
-
-  const [planNombre, setPlanNombre] = useState<string | null>(null);
-  const [cargando, setCargando] = useState<boolean>(true);
-
   // Mapeo de IDs de planes
   const PLANES: Record<string, string> = {
     "13fae609-2679-47fa-9731-e2f1badc4a61": "Plan Gratuito",
@@ -45,7 +39,15 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   };
 
   useEffect(() => {
-    // Solo ejecutar para usuarios que no estén en el mapeo estático
+    // Primero verificamos si es un usuario especial
+    if (usuarioId in USER_PLANES) {
+      setEsUsuarioEspecial(true);
+      setPlanEspecial(USER_PLANES[usuarioId]);
+      setCargando(false);
+      return;
+    }
+    
+    // Si no es un usuario especial, cargamos el plan de manera normal
     async function cargarPlan() {
       setCargando(true);
       
@@ -84,8 +86,17 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     cargarPlan();
   }, [usuarioId]);
 
+  // Renderizado condicional basado en los estados
   if (cargando) {
     return <span>...</span>;
+  }
+
+  if (esUsuarioEspecial && planEspecial) {
+    return (
+      <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
+        {planEspecial}
+      </span>
+    );
   }
 
   if (!planNombre) {
