@@ -34,29 +34,7 @@ export default function PerfilUsuario() {
       console.log("===== CARGANDO DATOS DE USUARIO Y MEMBRESÍA =====");
       console.log("ID de usuario:", userId);
       
-      // Importar el servicio de membresía dinámicamente
-      const { MembershipService } = await import('@/lib/membership-service');
-      
-      // Primera opción: usar la función RPC si existe (para compatibilidad)
-      try {
-        console.log("Intentando usar función RPC para obtener datos completos...");
-        const { data: membershipData, error: rpcError } = await supabase
-          .rpc('get_user_with_active_membership', { user_id: userId });
-          
-        if (!rpcError && membershipData) {
-          console.log("Datos obtenidos correctamente mediante RPC:", membershipData);
-          setUsuario(membershipData);
-          setLoading(false);
-          return;
-        } else {
-          console.log("La función RPC no está disponible, usando enfoque alternativo.");
-        }
-      } catch (rpcErr) {
-        console.log("Error al usar RPC, continuando con método alternativo:", rpcErr);
-      }
-      
-      // Enfoque robusto con el servicio centralizado
-      console.log("Usando servicio centralizado de membresías...");
+      // ENFOQUE SIMPLIFICADO: mismo método que funciona en perfil/membresia
       
       // Paso 1: Obtener datos básicos del usuario
       console.log("Obteniendo datos básicos del usuario...");
@@ -71,78 +49,164 @@ export default function PerfilUsuario() {
         throw userError;
       }
       
-      console.log("Datos básicos del usuario obtenidos correctamente.");
+      console.log("Datos básicos del usuario obtenidos correctamente");
       
-      // Paso 2: Usar el servicio centralizado para obtener la membresía activa
-      console.log("Obteniendo membresía activa con el servicio centralizado...");
-      const membresiaActiva = await MembershipService.getActiveMembership(userId);
+      // Paso 2: Consulta directa para la membresía activa (igual que en perfil/membresia)
+      console.log("Consultando membresía activa directamente por estado='activa'");
       
-      if (membresiaActiva) {
-        console.log("Membresía activa encontrada:", membresiaActiva.id);
+      const { data: membresiaData, error: membresiaError } = await supabase
+        .from('membresias_usuarios')
+        .select(`
+          id,
+          usuario_id,
+          tipo_membresia_id,
+          fecha_inicio,
+          fecha_fin,
+          estado,
+          created_at,
+          updated_at,
+          tipo_membresia:membresia_tipos (
+            id, 
+            nombre, 
+            descripcion, 
+            precio, 
+            limite_listas,
+            limite_proveedores,
+            limite_articulos,
+            duracion_meses,
+            tiene_ai
+          )
+        `)
+        .eq('usuario_id', userId)
+        .eq('estado', 'activa')
+        .order('fecha_inicio', { ascending: false })
+        .limit(1);
+      
+      if (membresiaError) {
+        console.error("Error al consultar membresía activa:", membresiaError);
+      }
+      
+      // Si encontramos una membresía activa
+      if (membresiaData && membresiaData.length > 0) {
+        console.log("Membresía activa encontrada:", membresiaData[0].id);
         
-        // Si la referencia en el usuario es incorrecta, corregirla
-        if (userData.membresia_activa_id !== membresiaActiva.id) {
-          console.log("Corrigiendo referencia de membresía en el usuario...");
+        // Verificar si la referencia en el usuario coincide
+        if (userData.membresia_activa_id !== membresiaData[0].id) {
+          console.log("Corrigiendo referencia de membresía en usuario");
           console.log("  - ID actual:", userData.membresia_activa_id);
-          console.log("  - ID correcto:", membresiaActiva.id);
+          console.log("  - ID correcto:", membresiaData[0].id);
           
+          // Actualizar la referencia en el usuario
           const { error: updateError } = await supabase
             .from('usuarios')
-            .update({ membresia_activa_id: membresiaActiva.id })
+            .update({ membresia_activa_id: membresiaData[0].id })
             .eq('id', userId);
             
           if (updateError) {
             console.error("Error al actualizar referencia:", updateError);
           } else {
-            console.log("Referencia corregida exitosamente");
-            userData.membresia_activa_id = membresiaActiva.id;
+            console.log("Referencia actualizada correctamente");
+            userData.membresia_activa_id = membresiaData[0].id;
           }
         }
-      } else {
-        console.log("No se encontró membresía activa");
         
-        // Si hay una referencia a membresía pero no se encontró ninguna activa,
-        // intentar reparar con el endpoint dedicado
-        if (userData.membresia_activa_id) {
-          console.log("Hay una referencia a membresía pero no se encontró ninguna activa");
-          console.log("Intentando reparar membresía con el servicio...");
+        // Construir y devolver el objeto de usuario con membresía activa
+        const usuarioCompleto = {
+          ...userData,
+          membresia_activa: membresiaData[0]
+        };
+        
+        setUsuario(usuarioCompleto);
+        setLoading(false);
+        return;
+      }
+      
+      // No se encontró membresía activa, verificar si hay inconsistencia
+      console.log("No se encontró membresía activa por estado");
+      
+      // Si hay una referencia a membresía, intentar corregir
+      if (userData.membresia_activa_id) {
+        console.log("El usuario tiene una referencia a membresía:", userData.membresia_activa_id);
+        console.log("Intentando verificar y activar esa membresía...");
+        
+        // Buscar la membresía referenciada
+        const { data: membresiaRef, error: refError } = await supabase
+          .from('membresias_usuarios')
+          .select(`
+            id,
+            usuario_id,
+            tipo_membresia_id,
+            fecha_inicio,
+            fecha_fin,
+            estado,
+            created_at,
+            updated_at,
+            tipo_membresia:membresia_tipos (*)
+          `)
+          .eq('id', userData.membresia_activa_id)
+          .single();
           
-          const resultado = await MembershipService.fixMembership(userId);
+        if (refError) {
+          console.error("Error al buscar membresía referenciada:", refError);
+        } else if (membresiaRef) {
+          console.log("Membresía referenciada encontrada:", membresiaRef);
           
-          if (resultado.success && resultado.membership) {
-            console.log("Membresía reparada exitosamente:", resultado.membership.id);
-            // Recargar la membresía después de la reparación
-            const membresiaReparada = await MembershipService.getActiveMembership(userId);
+          // Si la membresía referenciada no está activa, activarla
+          if (membresiaRef.estado !== 'activa') {
+            console.log("La membresía referenciada no está activa. Activándola...");
             
-            if (membresiaReparada) {
-              console.log("Membresía actualizada después de reparación:", membresiaReparada.id);
-              // Construir y devolver el objeto de usuario actualizado
-              const usuarioReparado = {
-                ...userData,
-                membresia_activa: membresiaReparada,
-                membresia_activa_id: membresiaReparada.id
-              };
+            const { error: activateError } = await supabase
+              .from('membresias_usuarios')
+              .update({ estado: 'activa' })
+              .eq('id', membresiaRef.id);
               
-              setUsuario(usuarioReparado);
-              setLoading(false);
-              return;
+            if (activateError) {
+              console.error("Error al activar membresía:", activateError);
+            } else {
+              console.log("Membresía activada correctamente");
+              membresiaRef.estado = 'activa';
             }
-          } else {
-            console.log("La reparación no encontró una membresía activa válida");
           }
+          
+          // Usar esta membresía para el usuario
+          const usuarioConMembresiaReferenciada = {
+            ...userData,
+            membresia_activa: membresiaRef
+          };
+          
+          setUsuario(usuarioConMembresiaReferenciada);
+          setLoading(false);
+          return;
         }
       }
       
-      // Construir el objeto de usuario completo
-      const usuarioCompleto = {
+      // Si llegamos aquí, el usuario no tiene membresía activa
+      console.log("No se encontró ninguna membresía válida para el usuario");
+      
+      // Limpiar referencia si existe
+      if (userData.membresia_activa_id) {
+        console.log("Limpiando referencia incorrecta en el usuario");
+        
+        const { error: clearError } = await supabase
+          .from('usuarios')
+          .update({ membresia_activa_id: null })
+          .eq('id', userId);
+          
+        if (clearError) {
+          console.error("Error al limpiar referencia:", clearError);
+        } else {
+          console.log("Referencia limpiada correctamente");
+          userData.membresia_activa_id = null;
+        }
+      }
+      
+      // Devolver usuario sin membresía
+      const usuarioSinMembresia = {
         ...userData,
-        membresia_activa: membresiaActiva || null
+        membresia_activa: null
       };
       
-      console.log("Usuario completo con membresía:", 
-        membresiaActiva ? `Activa (${membresiaActiva.id})` : "Sin membresía activa");
-      
-      setUsuario(usuarioCompleto);
+      setUsuario(usuarioSinMembresia);
     } catch (err) {
       console.error("Error general al cargar datos del usuario:", err);
       setMensaje({

@@ -12,16 +12,14 @@ import Loading from "@/components/ui/Loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminAuth } from "../../auth";
 
-import { MembershipService } from '@/lib/membership-service';
-
-// Componente mejorado para mostrar información de membresía usando el servicio centralizado
+// Componente simplificado para mostrar información de membresía directamente desde Supabase
 const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
   const [membresia, setMembresia] = useState<any | null>(null);
   const [cargando, setCargando] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [reparando, setReparando] = useState<boolean>(false);
 
-  // Función para cargar la membresía
+  // Función para cargar membresía directamente con SQL, similar a lo que funciona en perfil/membresia
   const cargarMembresia = async () => {
     if (!usuarioId) return;
     
@@ -29,50 +27,75 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     setError(null);
     
     try {
-      console.log(`Cargando membresía para usuario: ${usuarioId}`);
+      // Enfoque directo: Obtener la membresía activa con un join completo
+      // Esta es la consulta que funciona en la página de perfil
+      const { data, error } = await supabase
+        .from('membresias_usuarios')
+        .select(`
+          id,
+          tipo_membresia_id,
+          fecha_inicio,
+          fecha_fin,
+          estado,
+          tipo_membresia:membresia_tipos(id, nombre, descripcion, precio, tiene_ai)
+        `)
+        .eq('usuario_id', usuarioId)
+        .eq('estado', 'activa')
+        .order('fecha_inicio', { ascending: false })
+        .limit(1);
       
-      // Usar el servicio centralizado
-      const membresiaActiva = await MembershipService.getActiveMembership(usuarioId);
+      if (error) {
+        console.error("Error al consultar membresía activa:", error);
+        setError(error.message);
+        return;
+      }
       
-      if (membresiaActiva) {
-        console.log("Membresía activa encontrada:", membresiaActiva.id);
-        setMembresia(membresiaActiva);
+      if (data && data.length > 0) {
+        console.log("Membresía encontrada para usuario", usuarioId, ":", data[0]);
+        setMembresia(data[0]);
       } else {
-        console.log("No se encontró membresía activa para el usuario");
+        console.log("No se encontró membresía activa para el usuario", usuarioId);
         setMembresia(null);
       }
     } catch (err: any) {
       console.error("Error al cargar membresía:", err);
-      setError(err.message || "Error desconocido");
+      setError(err.message);
     } finally {
       setCargando(false);
     }
   };
   
-  // Función para reparar la membresía
+  // Función para reparar membresía
   const repararMembresia = async () => {
     if (!usuarioId || reparando) return;
     
     setReparando(true);
     
     try {
-      console.log(`Reparando membresía para usuario: ${usuarioId}`);
+      // Llamar al endpoint de reparación directamente
+      const response = await fetch('/api/debug-membership/fix', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: usuarioId })
+      });
       
-      // Usar el servicio de reparación
-      const resultado = await MembershipService.fixMembership(usuarioId);
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
       
-      if (resultado.success) {
-        console.log("Membresía reparada exitosamente");
-        
-        // Recargar la membresía después de reparar
+      const result = await response.json();
+      
+      if (result.success) {
+        // Recargar la membresía después de la reparación
         await cargarMembresia();
       } else {
-        console.error("Error al reparar membresía:", resultado.message);
-        setError("Error al reparar: " + resultado.message);
+        setError(result.message || "Error al reparar");
       }
     } catch (err: any) {
-      console.error("Error en reparación de membresía:", err);
-      setError(err.message || "Error en reparación");
+      console.error("Error al reparar membresía:", err);
+      setError(err.message);
     } finally {
       setReparando(false);
     }
@@ -83,12 +106,11 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     cargarMembresia();
   }, [usuarioId]);
   
-  // Estado de carga
+  // Estados de la interfaz
   if (cargando) {
     return <span className="italic text-gray-500 text-xs">Cargando...</span>;
   }
   
-  // Estado de error
   if (error) {
     return (
       <div className="flex items-center">
@@ -105,7 +127,6 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     );
   }
   
-  // Sin membresía
   if (!membresia) {
     return (
       <div className="flex items-center">
@@ -124,7 +145,6 @@ const MembresiaInfo = ({ usuarioId }: { usuarioId: string }) => {
     );
   }
   
-  // Mostrar membresía activa
   return (
     <div className="flex items-center">
       <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
