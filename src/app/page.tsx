@@ -57,9 +57,18 @@ export default function Home() {
               Gestiona tus compras a proveedores de forma eficiente
             </h1>
             <p className="mt-6 text-lg leading-8 text-indigo-100">
-              LucrApp simplifica el proceso de realizar pedidos a tus
-              proveedores, ahorrandote tiempo y reduciendo errores.
+              LucrApp revoluciona la forma en que realizas pedidos a tus proveedores. Centraliza información, automatiza procesos y reduce errores, permitiéndote ahorrar hasta un 70% del tiempo dedicado a gestión de compras.
             </p>
+            <div className="mt-4 text-base leading-7 text-indigo-100 bg-indigo-800 bg-opacity-50 p-4 rounded-lg">
+              <h3 className="font-semibold mb-2">¿Por qué elegir LucrApp?</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Catálogo digital de todos tus artículos organizado por proveedor</li>
+                <li>Crea pedidos y listas de compra con solo unos clics</li>
+                <li>Automatiza pedidos recurrentes y nunca te quedes sin stock</li>
+                <li>Escanea facturas para añadir productos automáticamente</li>
+                <li>Analiza tus compras con estadísticas detalladas</li>
+              </ul>
+            </div>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-6">
               <Link
                 href="/register"

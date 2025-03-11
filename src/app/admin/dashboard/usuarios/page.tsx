@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Loading from "@/components/ui/Loading";
+import MembershipStatus from "@/components/ui/MembershipStatus";
 import { Usuario, Mensaje } from "@/types";
 
 export default function GestionUsuarios() {
@@ -29,30 +30,8 @@ export default function GestionUsuarios() {
   const [actualizando, setActualizando] = useState(false);
   const itemsPerPage = 10;
   
-  // Datos hardcoded para usuarios especificos
-  const USUARIOS_ESPECIALES: Record<string, any> = {
-    "ddb19376-9903-487d-b3c8-98e40147c69d": {
-      membresia: {
-        nombre: "Plan Premium (IA)",
-        fecha_fin: "2026-03-08",
-        estado: "activa"
-      }
-    },
-    "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7": {
-      membresia: {
-        nombre: "Plan Inicial",
-        fecha_fin: "2026-03-10",
-        estado: "activa"
-      }
-    },
-    "b99f2269-1587-4c4c-92cd-30a212c2070e": {
-      membresia: {
-        nombre: "Plan Premium (IA)",
-        fecha_fin: "2026-03-09",
-        estado: "activa"
-      }
-    }
-  };
+  // Estado para guardar información detallada de membresías 
+  const [infoMembresias, setInfoMembresias] = useState<Record<string, any>>({});
 
   // Cargar usuarios y sus membresías
   useEffect(() => {
@@ -110,90 +89,92 @@ export default function GestionUsuarios() {
       
       // Preparar un objeto para almacenar las membresías por ID de usuario
       const membresiasMap: Record<string, any> = {};
+      const infoDetallado: Record<string, any> = {};
       
-      // Objeto para tracking de usuarios procesados
-      const procesadosMap: Record<string, boolean> = {};
+      // Obtener todos los IDs de usuarios
+      const usuariosIds = usuarios.map(u => u.id);
+        
+      // Cargar información de membresías para todos los usuarios
+      console.log(`Cargando membresías para ${usuariosIds.length} usuarios`);
       
-      // Procesar primero los usuarios especiales (hardcoded)
-      for (const userId in USUARIOS_ESPECIALES) {
-        if (usuarios.some(u => u.id === userId)) {
-          membresiasMap[userId] = USUARIOS_ESPECIALES[userId].membresia;
-          procesadosMap[userId] = true;
+      // Opción 1: Usar servicio centralizado (más eficiente)
+      const { MembershipService } = await import('@/lib/membership-service');
+      
+      for (const userId of usuariosIds) {
+        try {
+          // Intenta obtener la membresía mediante el servicio centralizado
+          const membresia = await MembershipService.getActiveMembership(userId);
+          
+          if (membresia) {
+            // Guardamos información resumida para la tabla
+            membresiasMap[userId] = {
+              nombre: membresia.tipo_membresia?.nombre || "Plan desconocido",
+              fecha_fin: membresia.fecha_fin,
+              estado: membresia.estado || "desconocido",
+              id: membresia.id
+            };
+            
+            // Guardamos información completa para análisis
+            infoDetallado[userId] = membresia;
+          }
+        } catch (err) {
+          console.error(`Error al cargar membresía para usuario ${userId}:`, err);
         }
       }
       
-      // Obtener los IDs de los usuarios que no son especiales
-      const usuariosRegulares = usuarios
-        .filter(u => !procesadosMap[u.id])
-        .map(u => u.id);
+      // Opción 2: Consulta directa como respaldo
+      // Obtenemos los usuarios que aún no tienen membresía asignada
+      const usuariosSinMembresia = usuariosIds.filter(id => !membresiasMap[id]);
+      
+      if (usuariosSinMembresia.length > 0) {
+        console.log(`Buscando membresías directamente para ${usuariosSinMembresia.length} usuarios`);
         
-      if (usuariosRegulares.length > 0) {
-        // Opción 1: Usar función RPC en Supabase
-        for (const userId of usuariosRegulares) {
-          try {
-            // Intenta obtener la membresía mediante el servicio centralizado
-            const { MembershipService } = await import('@/lib/membership-service');
-            const membresia = await MembershipService.getActiveMembership(userId);
-            
-            if (membresia) {
-              membresiasMap[userId] = {
-                nombre: membresia.tipo_membresia?.nombre || "Plan desconocido",
-                fecha_fin: membresia.fecha_fin,
-                estado: membresia.estado || "desconocido",
-                id: membresia.id
-              };
+        const { data: membresiasDirect, error: membresiasDirError } = await supabase
+          .from("membresias_usuarios")
+          .select(`
+            id, 
+            usuario_id, 
+            tipo_membresia_id, 
+            fecha_inicio, 
+            fecha_fin, 
+            estado,
+            tipo_membresia:membresia_tipos(id, nombre, descripcion, tiene_ai)
+          `)
+          .in("usuario_id", usuariosSinMembresia)
+          .eq("estado", "activa")
+          .order("fecha_inicio", { ascending: false });
+          
+        if (!membresiasDirError && membresiasDirect) {
+          // Agrupar por usuario_id (quedándonos solo con la más reciente)
+          const membresiasGrouped: Record<string, any> = {};
+          
+          for (const membresia of membresiasDirect) {
+            if (!membresiasGrouped[membresia.usuario_id]) {
+              membresiasGrouped[membresia.usuario_id] = membresia;
             }
-          } catch (err) {
-            console.error(`Error al cargar membresía para usuario ${userId}:`, err);
           }
-        }
-        
-        // Opción 2: Consulta directa como respaldo (por si la función RPC falla)
-        // Obtenemos los usuarios que aún no tienen membresía asignada
-        const usuariosSinMembresia = usuariosRegulares.filter(id => !membresiasMap[id]);
-        
-        if (usuariosSinMembresia.length > 0) {
-          const { data: membresiasDirect, error: membresiasDirError } = await supabase
-            .from("membresias_usuarios")
-            .select(`
-              id, 
-              usuario_id, 
-              tipo_membresia_id, 
-              fecha_inicio, 
-              fecha_fin, 
-              estado,
-              tipo_membresia:membresia_tipos(id, nombre, descripcion, tiene_ai)
-            `)
-            .in("usuario_id", usuariosSinMembresia)
-            .eq("estado", "activa")
-            .order("fecha_inicio", { ascending: false });
+          
+          // Añadir al mapa principal
+          for (const userId in membresiasGrouped) {
+            const membresia = membresiasGrouped[userId];
             
-          if (!membresiasDirError && membresiasDirect) {
-            // Agrupar por usuario_id (quedándonos solo con la más reciente)
-            const membresiasGrouped: Record<string, any> = {};
+            // Guardamos información resumida para la tabla
+            membresiasMap[userId] = {
+              nombre: membresia.tipo_membresia?.nombre || "Plan desconocido",
+              fecha_fin: membresia.fecha_fin,
+              estado: membresia.estado || "desconocido",
+              id: membresia.id
+            };
             
-            for (const membresia of membresiasDirect) {
-              if (!membresiasGrouped[membresia.usuario_id]) {
-                membresiasGrouped[membresia.usuario_id] = membresia;
-              }
-            }
-            
-            // Añadir al mapa principal
-            for (const userId in membresiasGrouped) {
-              const membresia = membresiasGrouped[userId];
-              membresiasMap[userId] = {
-                nombre: membresia.tipo_membresia?.nombre || "Plan desconocido",
-                fecha_fin: membresia.fecha_fin,
-                estado: membresia.estado || "desconocido",
-                id: membresia.id
-              };
-            }
+            // Guardamos información completa para análisis
+            infoDetallado[userId] = membresia;
           }
         }
       }
       
       // Actualizar el estado con todas las membresías encontradas
       setMembresiasPorUsuario(membresiasMap);
+      setInfoMembresias(infoDetallado);
       
     } catch (error) {
       console.error("Error al cargar membresías por usuario:", error);
@@ -257,7 +238,7 @@ export default function GestionUsuarios() {
         tipo: "exito"
       });
 
-      // Limpiar el mensaje despu�s de 3 segundos
+      // Limpiar el mensaje después de 3 segundos
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
@@ -347,31 +328,30 @@ export default function GestionUsuarios() {
       (usuario.apellidos && usuario.apellidos.toLowerCase().includes(filtro.toLowerCase())) ||
       (usuario.empresa && usuario.empresa.toLowerCase().includes(filtro.toLowerCase()));
     
-    // Filtro de membres�a (si est� activo)
+    // Filtro de membresía (si está activo)
     if (!filtroMembresia) return matchesText;
     
-    // Si filtro es "sin-membresia", verificar si no tiene membres�a
+    // Si filtro es "sin-membresia", verificar si no tiene membresía
     if (filtroMembresia === "sin-membresia") {
       return matchesText && !membresiasPorUsuario[usuario.id];
     }
     
-    // Verificar por tipo de membres�a
+    // Verificar por tipo de membresía
     const membresia = membresiasPorUsuario[usuario.id];
     
-    // Si el usuario es especial, verificar manualmente
-    if (USUARIOS_ESPECIALES[usuario.id]) {
-      const planNombre = USUARIOS_ESPECIALES[usuario.id].membresia.nombre;
-      const planFiltrado = tiposMembresia.find(t => t.id === filtroMembresia)?.nombre;
-      return matchesText && planNombre === planFiltrado;
+    // Si tiene información detallada guardada, verificar por esta vía
+    if (infoMembresias[usuario.id] && infoMembresias[usuario.id].tipo_membresia) {
+      const tipoMembresia = infoMembresias[usuario.id].tipo_membresia;
+      return matchesText && tipoMembresia.id === filtroMembresia;
     }
     
-    // Para el resto de usuarios, verificar si coincide con el tipo de membres�a
+    // Para el resto de usuarios, verificar si coincide con el tipo de membresía
     return matchesText && membresia && tiposMembresia.some(
       t => t.id === filtroMembresia && t.nombre === membresia.nombre
     );
   });
 
-  // Paginaci�n
+  // Paginación
   const totalPages = Math.ceil(usuariosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentUsuarios = usuariosFiltrados.slice(startIndex, startIndex + itemsPerPage);
@@ -409,6 +389,14 @@ export default function GestionUsuarios() {
       </div>
 
       <Alert mensaje={mensaje} onClose={() => setMensaje(null)} />
+      
+      {/* Alertas para membresías temporales que requieren atención */}
+      {Object.values(infoMembresias).some(mem => mem && typeof mem === 'object' && 'estado' in mem && mem.estado === 'temporal') && (
+        <MembershipStatus 
+          membership={{estado: 'temporal'}} 
+          isAdmin={true}
+        />
+      )}
 
       {/* Filtros */}
       <Card className="mb-6">
@@ -491,7 +479,7 @@ export default function GestionUsuarios() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No hay usuarios</h3>
-            <p className="mt-1 text-sm text-gray-500">Comienza a�adiendo un nuevo usuario a la plataforma.</p>
+            <p className="mt-1 text-sm text-gray-500">Comienza añadiendo un nuevo usuario a la plataforma.</p>
             <div className="mt-6">
               <Button href="/admin/dashboard/usuarios/nuevo">
                 <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -509,7 +497,7 @@ export default function GestionUsuarios() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron usuarios</h3>
-            <p className="mt-1 text-sm text-gray-500">No hay usuarios que coincidan con tu b�squeda.</p>
+            <p className="mt-1 text-sm text-gray-500">No hay usuarios que coincidan con tu búsqueda.</p>
             <div className="mt-6">
               <Button
                 variant="secondary"
@@ -553,12 +541,8 @@ export default function GestionUsuarios() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {currentUsuarios.map((usuario) => {
-                    // Determinar si el usuario tiene una membres�a especial hardcoded
-                    const esUsuarioEspecial = USUARIOS_ESPECIALES[usuario.id] !== undefined;
-                    // Obtener los datos de membres�a (del hardcoded o de la BD)
-                    const membresiaData = esUsuarioEspecial 
-                      ? USUARIOS_ESPECIALES[usuario.id].membresia 
-                      : membresiasPorUsuario[usuario.id];
+                    // Obtener los datos de membresía directamente de la BD
+                    const membresiaData = membresiasPorUsuario[usuario.id];
                     
                     return (
                       <tr key={usuario.id} className="hover:bg-gray-50">
@@ -600,13 +584,22 @@ export default function GestionUsuarios() {
                           {membresiaData ? (
                             <div className="flex flex-col">
                               <span className={`text-xs ${
-                                membresiaData.estado === 'activa' ? 'text-green-600' : 'text-orange-600'
+                                membresiaData.estado === 'activa' ? 'text-green-600' : 
+                                membresiaData.estado === 'temporal' ? 'text-red-600 font-bold' :
+                                'text-orange-600'
                               }`}>
-                                {membresiaData.estado === 'activa' ? 'Activa' : membresiaData.estado || 'Desconocido'}
+                                {membresiaData.estado === 'activa' ? 'Activa' : 
+                                 membresiaData.estado === 'temporal' ? '⚠️ Temporal' :
+                                 membresiaData.estado || 'Desconocido'}
                               </span>
                               <span className="text-xs text-gray-500">
                                 Hasta: {membresiaData.fecha_fin ? formatearFecha(membresiaData.fecha_fin) : 'N/A'}
                               </span>
+                              {membresiaData.estado === 'temporal' && (
+                                <span className="text-xs text-red-500 mt-1">
+                                  Requiere atención
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-xs text-gray-500">-</span>
@@ -663,7 +656,7 @@ export default function GestionUsuarios() {
             </div>
           </Card>
 
-          {/* Paginaci�n */}
+          {/* Paginación */}
           {totalPages > 1 && (
             <div className="mt-4 flex justify-between items-center">
               <p className="text-sm text-gray-700">

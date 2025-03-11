@@ -184,6 +184,65 @@ export default function ArticulosPage() {
             </Link>
           </div>
         </div>
+        
+        {/* Guía de Uso */}
+        <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded shadow-sm">
+          <h2 className="text-lg font-semibold text-green-800 mb-2">Gestión de Artículos</h2>
+          <p className="text-sm text-green-700 mb-2">
+            En esta sección puedes crear y administrar tu catálogo completo de productos. Un catálogo bien organizado simplificará enormemente la creación de pedidos.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 text-sm">
+            <div className="bg-white p-3 rounded shadow-sm border border-green-100">
+              <h3 className="font-medium text-green-800 mb-1">Añadir artículos manualmente</h3>
+              <p className="text-gray-600 mb-2">Crea tus artículos uno a uno con toda la información:</p>
+              <ul className="list-disc pl-5 text-gray-600 space-y-1">
+                <li>Nombre descriptivo del producto</li>
+                <li>Precio actual (puedes actualizarlo después)</li>
+                <li>Unidad de compra (kg, unidad, caja, etc.)</li>
+                <li>Proveedor asociado</li>
+                <li>SKU o código de referencia (opcional)</li>
+              </ul>
+            </div>
+            
+            <div className="bg-white p-3 rounded shadow-sm border border-green-100">
+              <h3 className="font-medium text-green-800 mb-1">Escanear facturas (¡Recomendado!)</h3>
+              <p className="text-gray-600 mb-2">Utiliza nuestra tecnología de escaneo para importar artículos rápidamente:</p>
+              <ol className="list-decimal pl-5 text-gray-600 space-y-1">
+                <li>Haz clic en "Escanear Factura"</li>
+                <li>Sube una foto o escaneo de tu factura</li>
+                <li>Verifica los artículos detectados</li>
+                <li>Confirma para añadirlos a tu catálogo</li>
+              </ol>
+              <p className="text-green-700 text-xs mt-2">La función de escaneo puede detectar nombres, precios y cantidades automáticamente.</p>
+            </div>
+          </div>
+          
+          <button 
+            className="text-green-600 hover:text-green-800 text-sm font-medium mt-3 flex items-center"
+            onClick={() => {
+              const guia = document.getElementById('guia-articulos');
+              if (guia) guia.style.display = guia.style.display === 'none' ? 'block' : 'none';
+            }}
+          >
+            Ver consejos útiles
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+          
+          <div id="guia-articulos" className="mt-3 hidden">
+            <h3 className="font-medium text-green-800 mb-1">Consejos para gestionar artículos:</h3>
+            <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+              <li>Utiliza nombres descriptivos y consistentes (ej. "Aceite Oliva Virgen 5L" en lugar de "Aceite")</li>
+              <li>Mantén los precios actualizados para tener presupuestos precisos</li>
+              <li>Asigna cada artículo a su proveedor correspondiente para facilitar los pedidos</li>
+              <li>Utiliza la función de escaneo para ahorrar tiempo con grandes catálogos</li>
+              <li>Revisa y actualiza periódicamente los artículos poco usados</li>
+              <li>Aprovecha el campo SKU para incluir códigos de referencia del proveedor</li>
+            </ul>
+          </div>
+        </div>
 
         {error && (
           <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">

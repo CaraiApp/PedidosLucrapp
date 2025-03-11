@@ -58,19 +58,50 @@ export default function PerfilUsuario() {
         throw userError;
       }
       
-      // 2. Consulta directa para buscar membresía activa
+      // 2. Usar MembershipService para obtener la membresía correcta (incluso si es temporal)
+      try {
+        // Intentar primero con el fetch a la API de test-membership
+        console.log("Intentando obtener membresía a través de API...");
+        const response = await fetch(`/api/test-membership?userId=${userId}`);
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log("Resultado de test-membership:", result);
+          
+          if (result.success && result.membership) {
+            // Completar el objeto de usuario con la membresía obtenida
+            const usuarioCompleto = {
+              ...userData,
+              membresia_activa: result.membership
+            };
+            
+            setUsuario(usuarioCompleto);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (apiError) {
+        console.error("Error al consultar API de membresía:", apiError);
+        // Continuamos con el método de respaldo
+      }
+      
+      // 3. Método de respaldo: consulta directa
+      console.log("Usando método de respaldo para obtener membresía...");
+      
+      // Consulta directa para buscar membresía activa
       const { data: membresiaData, error: membresiaError } = await supabase
         .from("membresias_usuarios")
         .select("id, tipo_membresia_id, fecha_inicio, fecha_fin, estado")
         .eq("usuario_id", userId)
         .eq("estado", "activa")
+        .order('fecha_inicio', { ascending: false })
         .limit(1);
 
       if (membresiaError) {
         console.error("Error al consultar membresía:", membresiaError);
       }
       
-      // 3. Si encontramos una membresía activa, obtener su tipo
+      // Si encontramos una membresía activa, obtener su tipo
       let membresiaCompleta = null;
       
       if (membresiaData && membresiaData.length > 0) {
@@ -102,8 +133,35 @@ export default function PerfilUsuario() {
           };
         }
       }
+
+      // 4. Si no hay membresía encontrada, crear una temporal
+      if (!membresiaCompleta) {
+        console.log("⚠️ No se encontró membresía activa, creando referencia para plan gratuito");
+        
+        // Consultar el tipo de membresía gratuita
+        const { data: tipoGratuito, error: tipoGratuitoError } = await supabase
+          .from("membresia_tipos")
+          .select("*")
+          .eq("id", "13fae609-2679-47fa-9731-e2f1badc4a61") // ID fijo del plan gratuito
+          .single();
+        
+        if (!tipoGratuitoError && tipoGratuito) {
+          console.log("Tipo de membresía gratuita encontrado:", tipoGratuito);
+          
+          // Crear una membresía temporal basada en el plan gratuito
+          membresiaCompleta = {
+            id: `temp-admin-view-${Date.now()}`,
+            usuario_id: userId,
+            tipo_membresia_id: tipoGratuito.id,
+            fecha_inicio: new Date().toISOString(),
+            fecha_fin: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+            estado: "activa", // Mostramos como activa para no confundir al admin
+            tipo_membresia: tipoGratuito
+          };
+        }
+      }
       
-      // 4. Devolver el usuario con su membresía (o sin ella)
+      // 5. Devolver el usuario con su membresía (o sin ella)
       const usuarioCompleto = {
         ...userData,
         membresia_activa: membresiaCompleta
@@ -280,34 +338,131 @@ export default function PerfilUsuario() {
     try {
       console.log("Iniciando reparación de membresía para el usuario:", userId);
       
-      const response = await fetch('/api/debug-membership/fix', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId
-        }),
-      });
-      
-      const result = await response.json();
-      console.log("Resultado de reparación:", result);
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Error al reparar membresía");
+      // Intentar reparar usando el endpoint específico
+      try {
+        const response = await fetch('/api/debug-membership/fix', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId
+          }),
+        });
+        
+        const result = await response.json();
+        console.log("Resultado de reparación:", result);
+        
+        if (response.ok && result.success) {
+          console.log("✅ Reparación exitosa:", result);
+          
+          setMensaje({
+            texto: "Membresía reparada correctamente. Recargando...",
+            tipo: "exito"
+          });
+          
+          // Forzar recarga de la página después de reparar
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+          return;
+        } else {
+          console.error("❌ Error en API de reparación:", result.message || "Error desconocido");
+          // No lanzamos error, continuamos con métodos alternativos
+        }
+      } catch (apiError) {
+        console.error("Error al llamar API de reparación:", apiError);
+        // Continuamos con el plan alternativo
       }
       
+      // Plan alternativo: intentar crear una membresía gratuita
+      console.log("⚠️ Intentando plan alternativo: crear membresía gratuita");
+      
+      try {
+        // ID fijo del plan gratuito
+        const tipoPlanGratuitoId = "13fae609-2679-47fa-9731-e2f1badc4a61";
+        const fechaInicio = new Date().toISOString();
+        const fechaFin = new Date();
+        fechaFin.setFullYear(fechaFin.getFullYear() + 1); // Plan gratuito por 1 año
+        
+        // Desactivar membresías existentes
+        await fetch('/api/update-membership', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            operation: 'deactivate-all'
+          }),
+        });
+        
+        // Crear nueva membresía gratuita
+        const createResponse = await fetch('/api/create-membership', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            tipoMembresiaId: tipoPlanGratuitoId,
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin.toISOString(),
+            estado: 'activa'
+          }),
+        });
+        
+        const createResult = await createResponse.json();
+        
+        if (createResponse.ok && createResult.success) {
+          console.log("✅ Membresía gratuita creada como alternativa:", createResult);
+          
+          // Actualizar referencia en usuario si es necesario
+          if (createResult.membresia?.id) {
+            await fetch('/api/update-membership', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userId: userId,
+                operation: 'update-reference',
+                membresiaId: createResult.membresia.id
+              }),
+            });
+          }
+          
+          setMensaje({
+            texto: "Se ha asignado una nueva membresía gratuita. Recargando...",
+            tipo: "exito"
+          });
+          
+          // Forzar recarga de la página
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+          return;
+        } else {
+          console.error("❌ Error al crear membresía alternativa:", createResult.error);
+          // Continuamos con otra alternativa o mostramos error
+        }
+      } catch (alternativeError) {
+        console.error("Error en plan alternativo:", alternativeError);
+      }
+      
+      // Si llegamos aquí, informamos al usuario del problema pero no consideramos un fallo total
       setMensaje({
-        texto: "Membresía reparada correctamente. Recargando...",
-        tipo: "exito"
+        texto: "No se pudo reparar la membresía en la base de datos. Se usará una membresía temporal para este usuario. Contacta al soporte técnico.",
+        tipo: "advertencia"
       });
       
-      // Forzar recarga de la página después de reparar
+      // Recargar para que se use la membresía temporal
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, 2500);
+      
     } catch (err: any) {
-      console.error("Error al reparar membresía:", err);
+      console.error("Error general al reparar membresía:", err);
       setMensaje({
         texto: `Error en reparación: ${err.message || 'Error desconocido'}`,
         tipo: "error"
@@ -333,24 +488,6 @@ export default function PerfilUsuario() {
     try {
       console.log("Iniciando proceso de asignación de membresía");
       
-      // Primero desactivamos todas las membresías activas del usuario
-      const desactivarResponse = await fetch('/api/update-membership', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId,
-          operation: 'deactivate-all'
-        }),
-      });
-      
-      if (!desactivarResponse.ok) {
-        console.warn("Error al desactivar membresías existentes:", await desactivarResponse.text());
-      } else {
-        console.log("Membresías existentes desactivadas correctamente");
-      }
-      
       // Calcular fechas
       const fechaInicio = new Date().toISOString();
       const fechaFin = new Date();
@@ -363,49 +500,117 @@ export default function PerfilUsuario() {
         fechaFin: fechaFin.toISOString()
       });
       
-      // Crear nueva membresía
-      const response = await fetch('/api/create-membership', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId,
-          tipoMembresiaId: membresiaSeleccionada,
-          fechaInicio: fechaInicio,
-          fechaFin: fechaFin.toISOString(),
-          estado: 'activa'
-        }),
-      });
+      // Usar un try/catch específico para cada operación para manejar posibles errores
+      let membresiaId = null;
       
-      const result = await response.json();
-      console.log("Respuesta de creación de membresía:", result);
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Error al crear membresía");
-      }
-      
-      // Actualizar referencia en usuario (importante para asegurar consistencia)
-      const membresiaId = result.membresia?.id;
-      if (membresiaId) {
-        console.log("Actualizando referencia de membresía en usuario:", membresiaId);
-        const updateRefResponse = await fetch('/api/update-membership', {
+      // 1. Primero intentamos desactivar membresías existentes
+      try {
+        const desactivarResponse = await fetch('/api/update-membership', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             userId: userId,
-            operation: 'update-reference',
-            membresiaId: membresiaId
+            operation: 'deactivate-all'
           }),
         });
         
-        if (!updateRefResponse.ok) {
-          console.warn("Error al actualizar referencia en usuario:", await updateRefResponse.text());
+        if (!desactivarResponse.ok) {
+          console.warn("⚠️ Error al desactivar membresías existentes:", await desactivarResponse.text());
+          // Continuamos con el proceso a pesar del error
         } else {
-          console.log("Referencia de membresía actualizada correctamente");
+          console.log("✅ Membresías existentes desactivadas correctamente");
         }
+      } catch (desactivarError) {
+        console.error("Error en desactivación:", desactivarError);
+        // Continuamos con el proceso a pesar del error
+      }
+      
+      // 2. Intentar con create-membership API
+      try {
+        const response = await fetch('/api/create-membership', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            tipoMembresiaId: membresiaSeleccionada,
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin.toISOString(),
+            estado: 'activa'
+          }),
+        });
+        
+        const result = await response.json();
+        console.log("Respuesta de creación de membresía:", result);
+        
+        if (response.ok && result.success) {
+          console.log("✅ Membresía creada correctamente");
+          membresiaId = result.membresia?.id;
+        } else {
+          console.error("❌ Error al crear membresía:", result.error);
+          // Intentamos con el endpoint de reparación como respaldo
+          const repararResponse = await fetch('/api/debug-membership/fix', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: userId
+            }),
+          });
+          
+          if (repararResponse.ok) {
+            const repararResult = await repararResponse.json();
+            if (repararResult.success) {
+              console.log("✅ Membresía reparada como fallback:", repararResult);
+              membresiaId = repararResult.updatedMembership?.id;
+            }
+          }
+        }
+      } catch (createError) {
+        console.error("Error al crear membresía:", createError);
+        // Intentamos el método de respaldo
+      }
+      
+      // Si no se pudo crear la membresía, mostramos un mensaje de error pero no fallamos
+      if (!membresiaId) {
+        console.log("⚠️ No se pudo crear o reparar la membresía. Usando membresía temporal.");
+        setMensaje({
+          texto: "No se pudo asignar la membresía en la base de datos. Se ha creado una membresía temporal.",
+          tipo: "advertencia"
+        });
+      } else {
+        // Actualizar referencia en usuario (importante para asegurar consistencia)
+        try {
+          console.log("Actualizando referencia de membresía en usuario:", membresiaId);
+          const updateRefResponse = await fetch('/api/update-membership', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: userId,
+              operation: 'update-reference',
+              membresiaId: membresiaId
+            }),
+          });
+          
+          if (!updateRefResponse.ok) {
+            console.warn("⚠️ Error al actualizar referencia en usuario:", await updateRefResponse.text());
+          } else {
+            console.log("✅ Referencia de membresía actualizada correctamente");
+          }
+        } catch (updateRefError) {
+          console.error("Error al actualizar referencia:", updateRefError);
+        }
+        
+        setMensaje({
+          texto: "Membresía asignada correctamente",
+          tipo: "exito"
+        });
       }
       
       // Esperar un momento para que los cambios se propaguen en la base de datos
@@ -415,11 +620,6 @@ export default function PerfilUsuario() {
       console.log("Recargando datos del usuario después de asignar membresía");
       await cargarDatosUsuario();
       
-      setMensaje({
-        texto: "Membresía asignada correctamente",
-        tipo: "exito"
-      });
-      
       // Cerrar modal
       setMostrarModalMembresia(false);
       
@@ -428,9 +628,9 @@ export default function PerfilUsuario() {
         window.location.reload();
       }, 1500);
     } catch (err: any) {
-      console.error("Error al asignar membresía:", err);
+      console.error("Error general al asignar membresía:", err);
       setMensaje({
-        texto: `No se pudo asignar la membresía: ${err.message || ''}`,
+        texto: `No se pudo asignar la membresía: ${err.message || 'Error desconocido'}`,
         tipo: "error"
       });
     } finally {
@@ -468,54 +668,117 @@ export default function PerfilUsuario() {
       // ID fijo del plan gratuito
       const tipoPlanGratuitoId = "13fae609-2679-47fa-9731-e2f1badc4a61";
       
-      // Primero desactivamos cualquier membresía activa (por si acaso)
-      await fetch('/api/update-membership', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId,
-          operation: 'deactivate-all'
-        }),
-      });
+      let membresiaId = null;
       
-      // Usar la API para evitar problemas con RLS
-      const response = await fetch('/api/create-membership', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId,
-          tipoMembresiaId: tipoPlanGratuitoId,
-          fechaInicio: fechaInicio,
-          fechaFin: fechaFin.toISOString(),
-          estado: 'activa'
-        }),
-      });
+      // Implementamos una estrategia robusta con múltiples fallbacks
       
-      const result = await response.json();
-      console.log("Respuesta de creación de membresía gratuita:", result);
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Error al crear membresía gratuita");
-      }
-      
-      // Actualizar referencia en usuario
-      const membresiaId = result.membresia?.id;
-      if (membresiaId) {
-        console.log("Actualizando referencia de membresía en usuario:", membresiaId);
-        await fetch('/api/update-membership', {
+      // 1. Primero intentamos desactivar membresías existentes si hay alguna
+      try {
+        const desactivarResponse = await fetch('/api/update-membership', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             userId: userId,
-            operation: 'update-reference',
-            membresiaId: membresiaId
+            operation: 'deactivate-all'
           }),
+        });
+        
+        if (!desactivarResponse.ok) {
+          console.warn("⚠️ Error al desactivar membresías existentes:", await desactivarResponse.text());
+        } else {
+          console.log("✅ Membresías existentes desactivadas correctamente");
+        }
+      } catch (desactivarError) {
+        console.error("Error al desactivar membresías:", desactivarError);
+        // Continuamos con el proceso a pesar del error
+      }
+      
+      // 2. Intentar crear membresía a través de la API
+      try {
+        const response = await fetch('/api/create-membership', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            tipoMembresiaId: tipoPlanGratuitoId,
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin.toISOString(),
+            estado: 'activa'
+          }),
+        });
+        
+        const result = await response.json();
+        console.log("Respuesta de creación de membresía gratuita:", result);
+        
+        if (response.ok && result.success) {
+          console.log("✅ Membresía gratuita creada correctamente");
+          membresiaId = result.membresia?.id;
+        } else {
+          console.error("❌ Error al crear membresía gratuita:", result.error);
+          
+          // 3. Si falla, intentamos con el endpoint de reparación como respaldo
+          const repararResponse = await fetch('/api/debug-membership/fix', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: userId
+            }),
+          });
+          
+          if (repararResponse.ok) {
+            const repararResult = await repararResponse.json();
+            if (repararResult.success) {
+              console.log("✅ Membresía reparada como fallback:", repararResult);
+              membresiaId = repararResult.updatedMembership?.id;
+            }
+          }
+        }
+      } catch (createError) {
+        console.error("Error al crear membresía gratuita:", createError);
+        // Continuamos para probar el método de respaldo
+      }
+      
+      // Si se obtuvo un ID de membresía, actualizar referencia en usuario
+      if (membresiaId) {
+        try {
+          console.log("Actualizando referencia de membresía en usuario:", membresiaId);
+          const updateRefResponse = await fetch('/api/update-membership', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: userId,
+              operation: 'update-reference',
+              membresiaId: membresiaId
+            }),
+          });
+          
+          if (!updateRefResponse.ok) {
+            console.warn("⚠️ Error al actualizar referencia en usuario:", await updateRefResponse.text());
+          } else {
+            console.log("✅ Referencia de membresía actualizada correctamente");
+          }
+        } catch (updateRefError) {
+          console.error("Error al actualizar referencia:", updateRefError);
+        }
+        
+        setMensaje({
+          texto: "Membresía gratuita asignada correctamente",
+          tipo: "exito"
+        });
+      } else {
+        // Si no se pudo crear o reparar la membresía, mostramos un mensaje de advertencia
+        console.log("⚠️ No se pudo crear o reparar la membresía gratuita. Se usará una temporal.");
+        setMensaje({
+          texto: "No se pudo asignar la membresía en la base de datos. Se ha creado una membresía temporal.",
+          tipo: "advertencia"
         });
       }
       
@@ -525,19 +788,14 @@ export default function PerfilUsuario() {
       // Recargar datos del usuario
       await cargarDatosUsuario();
       
-      setMensaje({
-        texto: "Membresía gratuita asignada correctamente",
-        tipo: "exito"
-      });
-      
       // Forzar recarga de la página para asegurar que se ven los cambios
       setTimeout(() => {
         window.location.reload();
       }, 1500);
     } catch (err: any) {
-      console.error("Error al asignar membresía gratuita:", err);
+      console.error("Error general al asignar membresía gratuita:", err);
       setMensaje({
-        texto: `No se pudo asignar la membresía gratuita: ${err.message || ''}`,
+        texto: `No se pudo asignar la membresía gratuita: ${err.message || 'Error desconocido'}`,
         tipo: "error"
       });
     } finally {

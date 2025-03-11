@@ -4,7 +4,13 @@ import { createClient } from '@supabase/supabase-js';
 // Para este endpoint usamos el cliente con los permisos de administrador
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
 );
 
 export async function POST(request: NextRequest) {
@@ -54,119 +60,43 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 3. Buscar la membresía premium (con AI)
+    // 3. Buscar la membresía premium (con AI) si existe
     const premiumMembership = memberships?.find(m => 
-      m.estado === 'activa' && m.tipo_membresia && typeof m.tipo_membresia === 'object' && 'tiene_ai' in m.tipo_membresia && m.tipo_membresia.tiene_ai === true
+      m.estado === 'activa' && 
+      m.tipo_membresia && 
+      typeof m.tipo_membresia === 'object' && 
+      'tiene_ai' in m.tipo_membresia && 
+      m.tipo_membresia.tiene_ai === true &&
+      new Date(m.fecha_fin) > new Date() // Asegurarse que no ha expirado
     );
     
-    // 4. Si no hay membresía premium activa, buscar cualquier membresía activa
-    const activeMembership = premiumMembership || memberships?.find(m => m.estado === 'activa');
+    // 4. Si no hay membresía premium activa, buscar cualquier membresía activa no expirada
+    const activeMembership = premiumMembership || memberships?.find(m => 
+      m.estado === 'activa' && 
+      new Date(m.fecha_fin) > new Date()
+    );
     
-    // SOLUCIÓN ESPECIAL PARA USUARIOS PROBLEMÁTICOS
-    // Estos son los IDs y datos hard-coded para los usuarios problemáticos
-    const SPECIAL_USERS: any = {
-      "ddb19376-9903-487d-b3c8-98e40147c69d": {
-        membresia_id: "5a02446b-6fb7-4c28-a343-04828f5b8626",
-        tipo_membresia_id: "9e6ecc49-90a9-4952-8a00-55b12cd39df1", // Plan Premium (IA)
-        fecha_fin: "2026-03-08T13:17:13.372+00:00",
-        estado: "activa"
-      },
-      "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7": {
-        membresia_id: "a7b328e9-d117-4e4f-a421-70e5dd212848", 
-        tipo_membresia_id: "df6a192e-941e-415c-b152-2572dcba092c", // Plan Inicial
-        fecha_fin: "2026-03-10T13:17:13.372+00:00",
-        estado: "activa"
-      },
-      "b99f2269-1587-4c4c-92cd-30a212c2070e": {
-        membresia_id: "c1d48ba5-7f31-4d6e-9c9f-b6d43f82bf09",
-        tipo_membresia_id: "9e6ecc49-90a9-4952-8a00-55b12cd39df1", // Plan Premium (IA)
-        fecha_fin: "2026-03-09T13:17:13.372+00:00",
-        estado: "activa"
-      }
-    };
-    
-    // Verificar si es un usuario especial
+    // 5. Si no hay membresía activa, buscar la membresía más reciente que no haya expirado
     let targetMembership: any = null;
-    if (Object.keys(SPECIAL_USERS).includes(userId)) {
-      console.log("APLICANDO SOLUCIÓN ESPECIAL PARA USUARIO:", userId);
+    
+    if (activeMembership) {
+      // Si encontramos una membresía activa, la usamos
+      console.log(`Usando membresía activa existente: ${activeMembership.id}`);
+      targetMembership = activeMembership;
+    } else if (memberships?.length) {
+      // Si hay membresías pero ninguna activa, intentamos usar la más reciente que no haya expirado
+      const validMembership = memberships.find(m => new Date(m.fecha_fin) > new Date());
       
-      // Datos predefinidos para el usuario especial
-      const specialData = SPECIAL_USERS[userId];
-      
-      // Eliminar cualquier membresía existente para este usuario
-      await supabaseAdmin
-        .from("membresias_usuarios")
-        .delete()
-        .eq("usuario_id", userId);
-      
-      // Crear una nueva membresía con los datos exactos predefinidos
-      const fechaInicio = new Date();
-      fechaInicio.setFullYear(fechaInicio.getFullYear() - 1); // Hace un año
-      
-      console.log("Creando membresía especial con ID:", specialData.membresia_id);
-      
-      try {
-        const { data: newMembership, error: createError } = await supabaseAdmin
-          .from("membresias_usuarios")
-          .insert({
-            id: specialData.membresia_id,
-            usuario_id: userId,
-            tipo_membresia_id: specialData.tipo_membresia_id,
-            fecha_inicio: fechaInicio.toISOString(),
-            fecha_fin: specialData.fecha_fin,
-            estado: specialData.estado
-          })
-          .select()
-          .single();
-          
-        if (!createError) {
-          targetMembership = newMembership;
-        } else {
-          console.error("Error en inserción, intentando actualización:", createError);
-          
-          // Si ya existe el ID, hacer update
-          const { data: updatedMem, error: updateError } = await supabaseAdmin
-            .from("membresias_usuarios")
-            .update({
-              usuario_id: userId,
-              tipo_membresia_id: specialData.tipo_membresia_id,
-              fecha_inicio: fechaInicio.toISOString(),
-              fecha_fin: specialData.fecha_fin,
-              estado: specialData.estado
-            })
-            .eq("id", specialData.membresia_id)
-            .select()
-            .single();
-            
-          if (!updateError) {
-            targetMembership = updatedMem;
-          } else {
-            console.error("Error en actualización:", updateError);
-            
-            // Si todo falla, crear un registro con un nuevo ID
-            const { data: fallbackMem, error: fallbackError } = await supabaseAdmin
-              .from("membresias_usuarios")
-              .insert({
-                usuario_id: userId,
-                tipo_membresia_id: specialData.tipo_membresia_id,
-                fecha_inicio: fechaInicio.toISOString(),
-                fecha_fin: specialData.fecha_fin,
-                estado: specialData.estado
-              })
-              .select()
-              .single();
-              
-            if (!fallbackError) {
-              targetMembership = fallbackMem;
-            }
-          }
-        }
-      } catch (specialError) {
-        console.error("Error en la solución especial:", specialError);
+      if (validMembership) {
+        console.log(`Usando membresía válida no activa: ${validMembership.id}`);
+        targetMembership = validMembership;
+        
+        // La activaremos más adelante
+      } else {
+        console.log("No se encontraron membresías válidas, se creará una nueva");
       }
     } else {
-      // 5. Si no hay membresía activa, buscar la membresía más reciente
-      targetMembership = activeMembership || (memberships?.length ? memberships[0] : null);
+      console.log("No se encontraron membresías para el usuario, se creará una nueva");
     }
     
     // Si no se encontró ninguna membresía, necesitamos crear una nueva (gratuita)

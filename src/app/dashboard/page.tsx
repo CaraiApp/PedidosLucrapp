@@ -8,6 +8,7 @@ import AppLayout from "../components/AppLayout";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Loading from "@/components/ui/Loading";
+import MembershipStatus from "@/components/ui/MembershipStatus";
 
 // Hooks y componentes
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +18,7 @@ import RecentLists from "@/app/dashboard/components/RecentLists";
 import { supabase } from "@/lib/supabase";
 import { ListaCompra } from "@/types";
 import { SUPER_ADMIN_EMAIL, createAdminToken } from "@/lib/admin/auth";
+import { MembershipService } from "@/lib/membership-service";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -25,18 +27,31 @@ export default function Dashboard() {
   
   const [loading, setLoading] = useState(true);
   const [listasRecientes, setListasRecientes] = useState<ListaCompra[]>([]);
+  const [membership, setMembership] = useState<any>(null);
 
   useEffect(() => {
-    // Si hay usuario, cargar las listas recientes
+    // Si hay usuario, cargar las listas recientes y membresía
     if (user) {
       console.log("Usuario autenticado:", user.email);
       loadRecentLists(user.id);
+      loadMembershipStatus(user.id);
     } else if (!authLoading) {
       // Si no hay usuario y ya terminó de cargar, establecer listasRecientes como vacío
       setLoading(false);
       setListasRecientes([]);
     }
   }, [authLoading, user, router]);
+  
+  // Cargar información de membresía
+  const loadMembershipStatus = async (userId: string) => {
+    try {
+      const membershipData = await MembershipService.getActiveMembership(userId);
+      console.log("Membresía cargada:", membershipData);
+      setMembership(membershipData);
+    } catch (err) {
+      console.error("Error al cargar membresía:", err);
+    }
+  };
 
   const loadRecentLists = async (userId: string) => {
     try {
@@ -207,6 +222,12 @@ export default function Dashboard() {
         </header>
         <main>
           <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            {/* Membership Status Warning (if needed) */}
+            <MembershipStatus 
+              membership={membership} 
+              isAdmin={user && user.email === SUPER_ADMIN_EMAIL}
+            />
+            
             {/* Dashboard Stats */}
             <div className="px-2 sm:px-4 py-6 sm:py-8 sm:px-0">
               <DashboardStats />

@@ -54,8 +54,81 @@ export default function DebugMembershipPage() {
       setUpdating(true);
       setMessage(null);
       
-      console.log("Enviando solicitud para actualizar membresía...");
+      console.log("Iniciando reparación y actualización de membresía...");
       
+      // 1. Intentar reparar primero usando el servicio de membresía mejorado
+      try {
+        console.log("Intentando reparar membresía con MembershipService...");
+        const result = await fetch('/api/test-membership?userId=' + (user?.id || ''), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          credentials: 'include'
+        });
+        
+        const data = await result.json();
+        console.log("Resultado de test-membership:", data);
+        
+        if (data.success) {
+          setMessage({
+            text: "Membresía actualizada correctamente. " + 
+                  (data.isTemporal ? "Se está usando una membresía temporal debido a problemas de conexión con la base de datos." : ""),
+            type: 'success'
+          });
+          
+          // Refrescar los datos
+          const response = await fetch('/api/debug-membership');
+          const newData = await response.json();
+          setMembershipData(newData);
+          return;
+        }
+      } catch (error) {
+        console.error("Error en prueba de membresía:", error);
+        // Continuamos con el siguiente método
+      }
+      
+      // 2. Usar el endpoint de reparación como respaldo
+      try {
+        console.log("Intentando reparar con API fix...");
+        const response = await fetch('/api/debug-membership/fix', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify({ userId: user?.id || membershipData?.user?.id }),
+          credentials: 'include'
+        });
+        
+        const data = await response.json();
+        console.log("Resultado de reparación:", data);
+        
+        if (data.success) {
+          setMessage({
+            text: "Membresía reparada correctamente. Por favor recarga la página para ver los cambios.",
+            type: 'success'
+          });
+          
+          // Refrescar los datos
+          const response = await fetch('/api/debug-membership');
+          const newData = await response.json();
+          setMembershipData(newData);
+          return;
+        } else {
+          setMessage({
+            text: `Error: ${data.message || 'Ocurrió un error al reparar la membresía'}`,
+            type: 'error'
+          });
+        }
+      } catch (error) {
+        console.error("Error en reparación:", error);
+        // Continuamos con el método tradicional
+      }
+      
+      // 3. Método original como último recurso
+      console.log("Usando método tradicional como último recurso...");
       const response = await fetch('/api/update-membership', {
         method: 'POST',
         headers: {
@@ -88,9 +161,18 @@ export default function DebugMembershipPage() {
     } catch (error) {
       console.error("Error updating membership:", error);
       setMessage({
-        text: "Error al comunicarse con el servidor",
+        text: "Error al comunicarse con el servidor. Se usará una membresía temporal.",
         type: 'error'
       });
+      
+      // Refrescar datos de todos modos para mostrar membresía temporal
+      try {
+        const response = await fetch('/api/debug-membership');
+        const newData = await response.json();
+        setMembershipData(newData);
+      } catch (err) {
+        console.error("Error refrescando datos:", err);
+      }
     } finally {
       setUpdating(false);
     }
