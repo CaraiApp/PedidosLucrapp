@@ -83,12 +83,12 @@ export async function POST(request: NextRequest) {
           "Analiza esta " +
           (isPdf ? "factura en PDF" : "imagen de una factura") +
           " y extrae la siguiente información estructurada con máxima precisión:\n\n" +
-          "1. Información del proveedor:\n" +
-          "   - Nombre del proveedor (busca el nombre más prominente en la cabecera de la factura)\n" +
-          "   - CIF/NIF (generalmente comienza con una letra, seguida de 8 números, como B12345678. Suele aparecer como 'CIF:', 'NIF:', o cerca de los datos fiscales. Puede estar en los márgenes de la factura escrito vertical o horizontalmente)\n" +
-          "   - Dirección (busca la dirección completa incluyendo calle, número, código postal y ciudad)\n" +
-          "   - Teléfono (busca números de contacto, normalmente con formato 9XXXXXXXX o similar)\n" +
-          "   - Email (busca direcciones de correo electrónico, normalmente con formato xxx@xxx.xx)\n\n" +
+          "1. Información del proveedor (VENDEDOR):\n" +
+          "   - Nombre del proveedor: IMPORTANTE: El proveedor/vendedor casi siempre aparece en la parte SUPERIOR IZQUIERDA de la factura. Busca el nombre más prominente en esta zona. NO confundas con los datos del cliente/comprador que suelen estar en la parte SUPERIOR DERECHA.\n" +
+          "   - CIF/NIF: Busca el número fiscal asociado con el proveedor (generalmente comienza con una letra, seguida de 8 números, como B12345678). Suele aparecer junto a etiquetas como 'CIF:', 'NIF:', o cerca de los datos fiscales del proveedor en la parte IZQUIERDA. Puede estar en los márgenes de la factura escrito vertical u horizontalmente. Asegúrate de no confundirlo con el CIF del cliente/comprador que estará en otra zona.\n" +
+          "   - Dirección: Busca la dirección completa del PROVEEDOR incluyendo calle, número, código postal y ciudad. Debe estar cerca del CIF del proveedor y del nombre del proveedor, generalmente en la parte SUPERIOR IZQUIERDA.\n" +
+          "   - Teléfono: Busca números de contacto del proveedor, normalmente con formato 9XXXXXXXX o similar, en la zona de datos del proveedor.\n" +
+          "   - Email: Busca direcciones de correo electrónico del proveedor, normalmente con formato xxx@xxx.xx, en la zona de datos del proveedor.\n\n" +
           "2. Información de artículos/productos:\n" +
           "   - Nombre del producto: Busca en la sección central o cuerpo de la factura, normalmente en columnas tituladas 'Descripción', 'Artículo', 'Concepto', 'Producto' o 'Detalle'. Extrae el NOMBRE COMPLETO del artículo sin truncarlo.\n" +
           "   - Precio unitario: Busca en columnas tituladas 'Precio', 'P.Unit', 'Importe unidad', '€/ud', o similar. Asegúrate de extraer el precio unitario, NO el precio total.\n" +

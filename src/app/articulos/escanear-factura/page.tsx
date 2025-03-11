@@ -147,32 +147,72 @@ function EscanerFactura() {
     };
   }, []);
 
-  // Funciones para manejar la cámara
+  // Funciones mejoradas para manejar la cámara
   const iniciarCamara = async () => {
     try {
       setMostrandoCamara(true);
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
+      // Configuración para obtener la mejor calidad posible en dispositivo móvil
+      const constraints = {
+        video: {
+          facingMode: "environment", // Usar cámara trasera
+          width: { ideal: 2048 }, // Resolución ideal alta
+          height: { ideal: 1536 },
+          aspectRatio: { ideal: 4/3 }, // Proporción ideal para documentos
+        }
+      };
       
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        
+        // Escuchar cuando el video está listo para obtener las dimensiones reales
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            console.log(`Cámara inicializada: ${videoRef.current.videoWidth}x${videoRef.current.videoHeight}`);
+          }
+        };
       }
+      
+      // Bloquear la orientación en modo móvil (si el API está disponible)
+      try {
+        if ('screen' in window && 'orientation' in window.screen) {
+          // Intentar bloquear la orientación en modo horizontal (landscape)
+          // @ts-ignore - TypeScript puede que no reconozca el API de orientación
+          await window.screen.orientation.lock('landscape');
+        }
+      } catch (orientationErr) {
+        // Continuar aunque no se pueda bloquear la orientación
+        console.log("No se pudo bloquear la orientación:", orientationErr);
+      }
+      
     } catch (err) {
       console.error("Error al acceder a la cámara:", err);
       setError("No se pudo acceder a la cámara. Verifica los permisos.");
+      setMostrandoCamara(false);
     }
   };
   
   const detenerCamara = () => {
+    // Liberar el bloqueo de orientación si se aplicó
+    try {
+      if ('screen' in window && 'orientation' in window.screen) {
+        // @ts-ignore - TypeScript puede que no reconozca el API de orientación
+        window.screen.orientation.unlock();
+      }
+    } catch (err) {
+      // Ignorar errores al liberar orientación
+    }
+    
+    // Detener todos los tracks del stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     
+    // Limpiar referencia del video
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -183,25 +223,62 @@ function EscanerFactura() {
   const capturarImagen = () => {
     if (!videoRef.current) return;
     
+    // Efecto flash visual
+    const flashElement = document.createElement('div');
+    flashElement.style.position = 'fixed';
+    flashElement.style.top = '0';
+    flashElement.style.left = '0';
+    flashElement.style.right = '0';
+    flashElement.style.bottom = '0';
+    flashElement.style.backgroundColor = 'white';
+    flashElement.style.opacity = '0.8';
+    flashElement.style.zIndex = '9999';
+    flashElement.style.transition = 'opacity 0.5s ease-out';
+    
+    document.body.appendChild(flashElement);
+    
+    // Crear canvas con las dimensiones exactas del video
     const canvas = document.createElement("canvas");
     canvas.width = videoRef.current.videoWidth;
     canvas.height = videoRef.current.videoHeight;
     const ctx = canvas.getContext("2d");
     
     if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0);
-      const imageData = canvas.toDataURL("image/jpeg");
+      // Dibujar el frame actual del video en el canvas
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      
+      // Convertir a JPEG con alta calidad (0.95)
+      const imageData = canvas.toDataURL("image/jpeg", 0.95);
+      
+      // Animar y quitar el flash
+      setTimeout(() => {
+        flashElement.style.opacity = '0';
+        setTimeout(() => {
+          document.body.removeChild(flashElement);
+        }, 500);
+      }, 100);
       
       // Crear un objeto File a partir del base64
       fetch(imageData)
         .then(res => res.blob())
         .then(blob => {
-          const file = new File([blob], "captura.jpeg", { type: "image/jpeg" });
+          // Asignar nombres con timestamp para evitar conflictos
+          const timestamp = new Date().getTime();
+          const file = new File([blob], `factura_${timestamp}.jpeg`, { 
+            type: "image/jpeg",
+            lastModified: timestamp
+          });
+          
+          // Actualizar estado y procesar
           setImagen(file);
           setImagenCapturada(imageData);
           setIsPdf(false);
           detenerCamara();
-          procesarImagen(file);
+          
+          // Pequeña pausa para asegurar que la UI se actualice antes de procesar
+          setTimeout(() => {
+            procesarImagen(file);
+          }, 300);
         });
     }
   };
@@ -514,85 +591,147 @@ function EscanerFactura() {
               </div>
             )}
           
-            {/* Previsualización de la cámara */}
+            {/* Previsualización de la cámara a pantalla completa */}
             {mostrandoCamara && (
-              <div className="mb-4">
-                <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '400px' }}>
+              <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                {/* Cabecera con título */}
+                <div className="bg-black bg-opacity-75 text-white p-4 flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Escanear Factura</h3>
+                  <button 
+                    onClick={detenerCamara}
+                    className="text-white focus:outline-none"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Video de la cámara a pantalla completa */}
+                <div className="flex-grow relative">
                   <video 
                     ref={videoRef} 
                     autoPlay 
                     playsInline 
-                    className="w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
+                  
+                  {/* Guías de orientación para la factura */}
+                  <div className="absolute inset-0 pointer-events-none border-4 border-white border-opacity-30 m-8"></div>
+                  
+                  {/* Indicaciones */}
+                  <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white text-sm px-4 py-2 rounded-full">
+                    Alinea la factura dentro del marco
+                  </div>
                 </div>
-                <div className="flex justify-between gap-4">
-                  <button 
-                    onClick={detenerCamara} 
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
+                
+                {/* Controles inferiores */}
+                <div className="bg-black bg-opacity-75 p-4 flex justify-center">
                   <button 
                     onClick={capturarImagen} 
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                    className="rounded-full h-16 w-16 bg-white flex items-center justify-center"
                   >
-                    Capturar
+                    <div className="rounded-full h-14 w-14 border-2 border-indigo-600"></div>
                   </button>
                 </div>
               </div>
             )}
             
-            {/* Previsualización de la imagen */}
+            {/* Previsualización de la imagen mejorada */}
             {imagenCapturada && (
               <div className="mb-4">
-                <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: '300px' }}>
-                  {isPdf ? (
-                    <div className="text-center py-4 flex flex-col items-center h-full justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <p className="text-gray-700 font-medium">{imagen?.name}</p>
-                      <p className="text-gray-500 text-sm mt-1">Documento PDF seleccionado</p>
+                <div className="relative">
+                  <div className="bg-gray-200 rounded-lg overflow-hidden mb-4" style={{ height: !isPdf ? '60vh' : '300px', maxHeight: '600px' }}>
+                    {isPdf ? (
+                      <div className="text-center py-4 flex flex-col items-center h-full justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p className="text-gray-700 font-medium">{imagen?.name}</p>
+                        <p className="text-gray-500 text-sm mt-1">Documento PDF seleccionado</p>
+                      </div>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imagenCapturada}
+                        alt="Imagen capturada"
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+                  </div>
+                  
+                  {/* Overlay para información de calidad (solo para imágenes) */}
+                  {!isPdf && !loading && !datosEscaneados && (
+                    <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-3 py-1 rounded-full text-xs">
+                      {imagen && (
+                        <>
+                          {Math.round(imagen.size / 1024)} KB
+                          {imagen.width && imagen.height ? ` • ${imagen.width}×${imagen.height}` : ""}
+                        </>
+                      )}
                     </div>
-                  ) : (
-                    // Using next/image is recommended, but using img for now
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={imagenCapturada}
-                      alt="Imagen capturada"
-                      className="w-full h-full object-contain"
-                    />
                   )}
                 </div>
-                <div className="flex justify-between gap-4">
-                  <button 
-                    onClick={reiniciarCaptura} 
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  >
-                    Nueva Captura
-                  </button>
-                  {loading ? (
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col">
                     <button 
-                      disabled
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-md opacity-50 cursor-not-allowed"
+                      onClick={reiniciarCaptura} 
+                      className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
                     >
-                      Procesando...
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                      </svg>
+                      Nueva Captura
                     </button>
-                  ) : datosEscaneados ? (
-                    <button 
-                      onClick={handleGuardarDatos} 
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                    >
-                      Guardar Datos
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => procesarImagen(imagen!)} 
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                    >
-                      Procesar
-                    </button>
-                  )}
+                    {!isPdf && (
+                      <button 
+                        onClick={iniciarCamara} 
+                        className="mt-2 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center justify-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Recapturar
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-center">
+                    {loading ? (
+                      <button 
+                        disabled
+                        className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md opacity-50 cursor-not-allowed flex items-center justify-center"
+                      >
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Procesando...
+                      </button>
+                    ) : datosEscaneados ? (
+                      <button 
+                        onClick={handleGuardarDatos} 
+                        className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        Guardar Datos
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => procesarImagen(imagen!)} 
+                        className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center justify-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M7 9a2 2 0 012-2h2a2 2 0 012 2v1h1a2 2 0 012 2v.5a.5.5 0 01-.5.5h-9a.5.5 0 01-.5-.5V12a2 2 0 012-2h1V9z" clipRule="evenodd" />
+                          <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                        </svg>
+                        Procesar
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
