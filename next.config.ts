@@ -7,9 +7,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'https://pedidos.lucrapp.com',
   },
   // Simplificamos la configuración para ser más estable en producción
-  experimental: {
-    serverComponentsExternalPackages: ['crypto-js'],
-  },
+  serverExternalPackages: ['crypto-js'],
   // Esta es una configuración importante para evitar problemas con la compilación
   typescript: {
     // Ignorar errores de TS durante la compilación
