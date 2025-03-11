@@ -46,10 +46,20 @@ export default function PerfilUsuario() {
       setLoading(true);
       console.log("Cargando datos básicos del usuario...");
       
-      // 1. Obtener los datos básicos del usuario
+      // 1. Obtener los datos básicos del usuario JUNTO con su membresía en una sola consulta
       const { data: userData, error: userError } = await supabase
         .from("usuarios")
-        .select("*")
+        .select(`
+          *,
+          membresia_activa:membresias_usuarios(
+            id, 
+            tipo_membresia_id, 
+            fecha_inicio, 
+            fecha_fin, 
+            estado,
+            tipo_membresia:membresia_tipos(*)
+          )
+        `)
         .eq("id", userId)
         .single();
         
@@ -58,114 +68,44 @@ export default function PerfilUsuario() {
         throw userError;
       }
       
-      // 2. Usar MembershipService para obtener la membresía correcta (incluso si es temporal)
-      try {
-        // Intentar primero con el fetch a la API de test-membership
-        console.log("Intentando obtener membresía a través de API...");
-        const response = await fetch(`/api/test-membership?userId=${userId}`);
+      console.log("Datos obtenidos:", userData);
+      
+      let usuarioCompleto = {...userData};
+      
+      // Procesar la membresía_activa (viene como array por ser una relación)
+      if (userData.membresia_activa && Array.isArray(userData.membresia_activa) && userData.membresia_activa.length > 0) {
+        // Tomar la primera membresía del array
+        const membresiaArray = userData.membresia_activa;
+        const membresia = membresiaArray[0];
         
-        if (response.ok) {
-          const result = await response.json();
-          console.log("Resultado de test-membership:", result);
-          
-          if (result.success && result.membership) {
-            // Completar el objeto de usuario con la membresía obtenida
-            const usuarioCompleto = {
-              ...userData,
-              membresia_activa: result.membership
-            };
-            
-            setUsuario(usuarioCompleto);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (apiError) {
-        console.error("Error al consultar API de membresía:", apiError);
-        // Continuamos con el método de respaldo
-      }
-      
-      // 3. Método de respaldo: consulta directa
-      console.log("Usando método de respaldo para obtener membresía...");
-      
-      // Consulta directa para buscar membresía activa
-      const { data: membresiaData, error: membresiaError } = await supabase
-        .from("membresias_usuarios")
-        .select("id, tipo_membresia_id, fecha_inicio, fecha_fin, estado")
-        .eq("usuario_id", userId)
-        .eq("estado", "activa")
-        .order('fecha_inicio', { ascending: false })
-        .limit(1);
-
-      if (membresiaError) {
-        console.error("Error al consultar membresía:", membresiaError);
-      }
-      
-      // Si encontramos una membresía activa, obtener su tipo
-      let membresiaCompleta = null;
-      
-      if (membresiaData && membresiaData.length > 0) {
-        const membresiaBasica = membresiaData[0];
-        console.log("Membresía activa encontrada:", membresiaBasica.id);
+        // Asignar la membresía directamente
+        usuarioCompleto.membresia_activa = membresia;
         
-        // Consulta para obtener detalles del tipo de membresía
-        const { data: tipoData, error: tipoError } = await supabase
-          .from("membresia_tipos")
-          .select("*")
-          .eq("id", membresiaBasica.tipo_membresia_id)
-          .single();
-          
-        if (tipoError) {
-          console.error("Error al obtener tipo de membresía:", tipoError);
-          // Crear un objeto básico con el nombre basado en el ID
-          membresiaCompleta = {
-            ...membresiaBasica,
-            tipo_membresia: {
-              id: membresiaBasica.tipo_membresia_id,
-              nombre: getNombrePlan(membresiaBasica.tipo_membresia_id)
-            }
-          };
-        } else {
-          // Crear un objeto completo con todos los datos del tipo
-          membresiaCompleta = {
-            ...membresiaBasica,
-            tipo_membresia: tipoData
-          };
-        }
-      }
-
-      // 4. Si no hay membresía encontrada, crear una temporal
-      if (!membresiaCompleta) {
-        console.log("⚠️ No se encontró membresía activa, creando referencia para plan gratuito");
+        console.log("Membresía asignada:", membresia);
+      } else {
+        console.log("No se encontró membresía para el usuario");
         
-        // Consultar el tipo de membresía gratuita
-        const { data: tipoGratuito, error: tipoGratuitoError } = await supabase
+        // Crear membresía gratuita por defecto
+        const { data: tipoGratuito } = await supabase
           .from("membresia_tipos")
           .select("*")
           .eq("id", "13fae609-2679-47fa-9731-e2f1badc4a61") // ID fijo del plan gratuito
           .single();
         
-        if (!tipoGratuitoError && tipoGratuito) {
-          console.log("Tipo de membresía gratuita encontrado:", tipoGratuito);
+        if (tipoGratuito) {
+          console.log("Usando plan gratuito predeterminado:", tipoGratuito);
           
-          // Crear una membresía temporal basada en el plan gratuito
-          membresiaCompleta = {
-            id: `temp-admin-view-${Date.now()}`,
+          usuarioCompleto.membresia_activa = {
+            id: "default-free-plan",
             usuario_id: userId,
             tipo_membresia_id: tipoGratuito.id,
             fecha_inicio: new Date().toISOString(),
             fecha_fin: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-            estado: "activa", // Mostramos como activa para no confundir al admin
+            estado: "activa",
             tipo_membresia: tipoGratuito
           };
         }
       }
-      
-      // 5. Devolver el usuario con su membresía (o sin ella)
-      const usuarioCompleto = {
-        ...userData,
-        membresia_activa: membresiaCompleta
-      };
       
       setUsuario(usuarioCompleto);
     } catch (err) {
