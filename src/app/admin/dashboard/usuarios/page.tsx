@@ -54,12 +54,12 @@ export default function GestionUsuarios() {
     }
   };
 
-  // Cargar usuarios y sus membresías
+  // Cargar usuarios y sus membresÃ­as
   useEffect(() => {
     cargarUsuarios();
   }, []);
 
-  // Función principal para cargar todos los usuarios
+  // FunciÃ³n principal para cargar todos los usuarios
   const cargarUsuarios = async () => {
     try {
       setLoading(true);
@@ -77,19 +77,19 @@ export default function GestionUsuarios() {
       
       setUsuarios(usuariosData || []);
       
-      // 2. Cargar tipos de membresía para filtros
+      // 2. Cargar tipos de membresÃ­a para filtros
       const { data: tiposMembresiaData, error: tiposMembresiaError } = await supabase
         .from("membresia_tipos")
         .select("*")
         .order("precio", { ascending: true });
         
       if (tiposMembresiaError) {
-        console.error("Error al cargar tipos de membresía:", tiposMembresiaError);
+        console.error("Error al cargar tipos de membresÃ­a:", tiposMembresiaError);
       } else {
         setTiposMembresia(tiposMembresiaData || []);
       }
       
-      // 3. Cargar todas las membresías activas para los usuarios
+      // 3. Cargar todas las membresÃ­as activas para los usuarios
       await cargarMembresiasPorUsuario(usuariosData || []);
       
     } catch (error: any) {
@@ -103,12 +103,12 @@ export default function GestionUsuarios() {
     }
   };
   
-  // Función para cargar todas las membresías para los usuarios cargados
+  // FunciÃ³n para cargar todas las membresÃ­as para los usuarios cargados
   const cargarMembresiasPorUsuario = async (usuarios: any[]) => {
     try {
       if (!usuarios || usuarios.length === 0) return;
       
-      // Preparar un objeto para almacenar las membresías por ID de usuario
+      // Preparar un objeto para almacenar las membresÃ­as por ID de usuario
       const membresiasMap: Record<string, any> = {};
       
       // Objeto para tracking de usuarios procesados
@@ -128,10 +128,10 @@ export default function GestionUsuarios() {
         .map(u => u.id);
         
       if (usuariosRegulares.length > 0) {
-        // Opción 1: Usar función RPC en Supabase
+        // OpciÃ³n 1: Usar funciÃ³n RPC en Supabase
         for (const userId of usuariosRegulares) {
           try {
-            // Intenta obtener la membresía mediante el servicio centralizado
+            // Intenta obtener la membresÃ­a mediante el servicio centralizado
             const { MembershipService } = await import('@/lib/membership-service');
             const membresia = await MembershipService.getActiveMembership(userId);
             
@@ -144,12 +144,12 @@ export default function GestionUsuarios() {
               };
             }
           } catch (err) {
-            console.error(`Error al cargar membresía para usuario ${userId}:`, err);
+            console.error(`Error al cargar membresÃ­a para usuario ${userId}:`, err);
           }
         }
         
-        // Opción 2: Consulta directa como respaldo (por si la función RPC falla)
-        // Obtenemos los usuarios que aún no tienen membresía asignada
+        // OpciÃ³n 2: Consulta directa como respaldo (por si la funciÃ³n RPC falla)
+        // Obtenemos los usuarios que aÃºn no tienen membresÃ­a asignada
         const usuariosSinMembresia = usuariosRegulares.filter(id => !membresiasMap[id]);
         
         if (usuariosSinMembresia.length > 0) {
@@ -169,7 +169,7 @@ export default function GestionUsuarios() {
             .order("fecha_inicio", { ascending: false });
             
           if (!membresiasDirError && membresiasDirect) {
-            // Agrupar por usuario_id (quedándonos solo con la más reciente)
+            // Agrupar por usuario_id (quedÃ¡ndonos solo con la mÃ¡s reciente)
             const membresiasGrouped: Record<string, any> = {};
             
             for (const membresia of membresiasDirect) {
@@ -178,7 +178,7 @@ export default function GestionUsuarios() {
               }
             }
             
-            // Añadir al mapa principal
+            // AÃ±adir al mapa principal
             for (const userId in membresiasGrouped) {
               const membresia = membresiasGrouped[userId];
               membresiasMap[userId] = {
@@ -192,40 +192,40 @@ export default function GestionUsuarios() {
         }
       }
       
-      // Actualizar el estado con todas las membresías encontradas
+      // Actualizar el estado con todas las membresÃ­as encontradas
       setMembresiasPorUsuario(membresiasMap);
       
     } catch (error) {
-      console.error("Error al cargar membresías por usuario:", error);
+      console.error("Error al cargar membresÃ­as por usuario:", error);
     }
   };
 
-  // Función para actualizar solo las membresías
+  // FunciÃ³n para actualizar solo las membresÃ­as
   const actualizarMembresias = async () => {
     try {
       setActualizando(true);
       setMensaje({
-        texto: "Actualizando información de membresías...",
+        texto: "Actualizando informaciÃ³n de membresÃ­as...",
         tipo: "info"
       });
       
-      // Recargar solo las membresías sin tocar los usuarios
+      // Recargar solo las membresÃ­as sin tocar los usuarios
       await cargarMembresiasPorUsuario(usuarios);
       
       setMensaje({
-        texto: "Membresías actualizadas correctamente",
+        texto: "MembresÃ­as actualizadas correctamente",
         tipo: "exito"
       });
       
-      // Limpiar mensaje después de 3 segundos
+      // Limpiar mensaje despuÃ©s de 3 segundos
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
       
     } catch (err: any) {
-      console.error("Error al actualizar membresías:", err);
+      console.error("Error al actualizar membresÃ­as:", err);
       setMensaje({
-        texto: `Error al actualizar membresías: ${err.message || "Error desconocido"}`,
+        texto: `Error al actualizar membresÃ­as: ${err.message || "Error desconocido"}`,
         tipo: "error"
       });
     } finally {
@@ -233,9 +233,9 @@ export default function GestionUsuarios() {
     }
   };
 
-  // Función para eliminar un usuario
+  // FunciÃ³n para eliminar un usuario
   const handleEliminarUsuario = async (id: string) => {
-    if (!window.confirm("¿Estás seguro de que quieres eliminar este usuario? Esta acción no se puede deshacer y eliminará todos sus datos asociados.")) {
+    if (!window.confirm("Â¿EstÃ¡s seguro de que quieres eliminar este usuario? Esta acciÃ³n no se puede deshacer y eliminarÃ¡ todos sus datos asociados.")) {
       return;
     }
 
@@ -257,7 +257,7 @@ export default function GestionUsuarios() {
         tipo: "exito"
       });
 
-      // Limpiar el mensaje después de 3 segundos
+      // Limpiar el mensaje despuï¿½s de 3 segundos
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
@@ -272,16 +272,16 @@ export default function GestionUsuarios() {
     }
   };
 
-  // Función para reparar la membresía de un usuario
+  // FunciÃ³n para reparar la membresÃ­a de un usuario
   const repararMembresia = async (userId: string) => {
     try {
       setActualizando(true);
       setMensaje({
-        texto: "Reparando membresía...",
+        texto: "Reparando membresÃ­a...",
         tipo: "info"
       });
       
-      // Llamar al endpoint de reparación
+      // Llamar al endpoint de reparaciÃ³n
       const response = await fetch('/api/debug-membership/fix', {
         method: 'POST',
         headers: {
@@ -294,28 +294,28 @@ export default function GestionUsuarios() {
       
       if (result.success) {
         setMensaje({
-          texto: "Membresía reparada correctamente",
+          texto: "MembresÃ­a reparada correctamente",
           tipo: "exito"
         });
         
-        // Recargar membresías para ver el cambio
+        // Recargar membresÃ­as para ver el cambio
         await cargarMembresiasPorUsuario(usuarios);
       } else {
         setMensaje({
-          texto: `Error: ${result.message || "No se pudo reparar la membresía"}`,
+          texto: `Error: ${result.message || "No se pudo reparar la membresÃ­a"}`,
           tipo: "error"
         });
       }
       
-      // Limpiar mensaje después de 3 segundos
+      // Limpiar mensaje despuÃ©s de 3 segundos
       setTimeout(() => {
         setMensaje(null);
       }, 3000);
       
     } catch (err: any) {
-      console.error("Error al reparar membresía:", err);
+      console.error("Error al reparar membresÃ­a:", err);
       setMensaje({
-        texto: `Error al reparar membresía: ${err.message || "Error desconocido"}`,
+        texto: `Error al reparar membresÃ­a: ${err.message || "Error desconocido"}`,
         tipo: "error"
       });
     } finally {
@@ -347,15 +347,15 @@ export default function GestionUsuarios() {
       (usuario.apellidos && usuario.apellidos.toLowerCase().includes(filtro.toLowerCase())) ||
       (usuario.empresa && usuario.empresa.toLowerCase().includes(filtro.toLowerCase()));
     
-    // Filtro de membresía (si está activo)
+    // Filtro de membresï¿½a (si estï¿½ activo)
     if (!filtroMembresia) return matchesText;
     
-    // Si filtro es "sin-membresia", verificar si no tiene membresía
+    // Si filtro es "sin-membresia", verificar si no tiene membresï¿½a
     if (filtroMembresia === "sin-membresia") {
       return matchesText && !membresiasPorUsuario[usuario.id];
     }
     
-    // Verificar por tipo de membresía
+    // Verificar por tipo de membresï¿½a
     const membresia = membresiasPorUsuario[usuario.id];
     
     // Si el usuario es especial, verificar manualmente
@@ -365,18 +365,18 @@ export default function GestionUsuarios() {
       return matchesText && planNombre === planFiltrado;
     }
     
-    // Para el resto de usuarios, verificar si coincide con el tipo de membresía
+    // Para el resto de usuarios, verificar si coincide con el tipo de membresï¿½a
     return matchesText && membresia && tiposMembresia.some(
       t => t.id === filtroMembresia && t.nombre === membresia.nombre
     );
   });
 
-  // Paginación
+  // Paginaciï¿½n
   const totalPages = Math.ceil(usuariosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentUsuarios = usuariosFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
-  // Renderización
+  // RenderizaciÃ³n
   if (loading && usuarios.length === 0) {
     return <Loading text="Cargando usuarios..." />;
   }
@@ -385,7 +385,7 @@ export default function GestionUsuarios() {
     <div className="p-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-2xl font-semibold text-gray-900">
-          Gestión de Usuarios ({usuarios.length})
+          GestiÃ³n de Usuarios ({usuarios.length})
         </h1>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -397,7 +397,7 @@ export default function GestionUsuarios() {
             <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Actualizar Membresías
+            Actualizar MembresÃ­as
           </Button>
           <Button href="/admin/dashboard/usuarios/nuevo">
             <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -412,7 +412,7 @@ export default function GestionUsuarios() {
 
       {/* Filtros */}
       <Card className="mb-6">
-        <h2 className="text-lg font-medium mb-4">Filtros de búsqueda</h2>
+        <h2 className="text-lg font-medium mb-4">Filtros de bÃºsqueda</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="col-span-1 md:col-span-2">
             <label htmlFor="filtroTexto" className="block text-sm font-medium text-gray-700 mb-1">
@@ -440,7 +440,7 @@ export default function GestionUsuarios() {
           
           <div>
             <label htmlFor="filtroMembresia" className="block text-sm font-medium text-gray-700 mb-1">
-              Filtrar por membresía
+              Filtrar por membresÃ­a
             </label>
             <select
               id="filtroMembresia"
@@ -451,8 +451,8 @@ export default function GestionUsuarios() {
                 setCurrentPage(1);
               }}
             >
-              <option value="">Todas las membresías</option>
-              <option value="sin-membresia">Sin membresía</option>
+              <option value="">Todas las membresÃ­as</option>
+              <option value="sin-membresia">Sin membresÃ­a</option>
               {tiposMembresia.map((tipo) => (
                 <option key={tipo.id} value={tipo.id}>
                   {tipo.nombre}
@@ -462,7 +462,7 @@ export default function GestionUsuarios() {
           </div>
         </div>
         
-        {/* Indicador de filtros y botón para limpiar */}
+        {/* Indicador de filtros y botÃ³n para limpiar */}
         {(filtro || filtroMembresia) && (
           <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-200">
             <p className="text-sm text-gray-600">
@@ -491,7 +491,7 @@ export default function GestionUsuarios() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No hay usuarios</h3>
-            <p className="mt-1 text-sm text-gray-500">Comienza añadiendo un nuevo usuario a la plataforma.</p>
+            <p className="mt-1 text-sm text-gray-500">Comienza aï¿½adiendo un nuevo usuario a la plataforma.</p>
             <div className="mt-6">
               <Button href="/admin/dashboard/usuarios/nuevo">
                 <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -509,7 +509,7 @@ export default function GestionUsuarios() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron usuarios</h3>
-            <p className="mt-1 text-sm text-gray-500">No hay usuarios que coincidan con tu búsqueda.</p>
+            <p className="mt-1 text-sm text-gray-500">No hay usuarios que coincidan con tu bï¿½squeda.</p>
             <div className="mt-6">
               <Button
                 variant="secondary"
@@ -553,9 +553,9 @@ export default function GestionUsuarios() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {currentUsuarios.map((usuario) => {
-                    // Determinar si el usuario tiene una membresía especial hardcoded
+                    // Determinar si el usuario tiene una membresï¿½a especial hardcoded
                     const esUsuarioEspecial = USUARIOS_ESPECIALES[usuario.id] !== undefined;
-                    // Obtener los datos de membresía (del hardcoded o de la BD)
+                    // Obtener los datos de membresï¿½a (del hardcoded o de la BD)
                     const membresiaData = esUsuarioEspecial 
                       ? USUARIOS_ESPECIALES[usuario.id].membresia 
                       : membresiasPorUsuario[usuario.id];
@@ -585,14 +585,14 @@ export default function GestionUsuarios() {
                           {usuario.email || "Sin email"}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          {/* Mostrar información de membresía */}
+                          {/* Mostrar informaciÃ³n de membresÃ­a */}
                           {membresiaData ? (
                             <div className="px-2 py-1 text-xs font-medium rounded-full inline-block text-green-800 bg-green-100">
                               {membresiaData.nombre || "Plan desconocido"}
                             </div>
                           ) : (
                             <div className="px-2 py-1 text-xs font-medium rounded-full inline-block text-gray-800 bg-gray-100">
-                              Sin membresía
+                              Sin membresÃ­a
                             </div>
                           )}
                         </td>
@@ -635,7 +635,7 @@ export default function GestionUsuarios() {
                               onClick={() => repararMembresia(usuario.id)}
                               variant="ghost"
                               size="sm"
-                              title="Reparar membresía"
+                              title="Reparar membresÃ­a"
                               disabled={actualizando}
                             >
                               <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -663,7 +663,7 @@ export default function GestionUsuarios() {
             </div>
           </Card>
 
-          {/* Paginación */}
+          {/* Paginaciï¿½n */}
           {totalPages > 1 && (
             <div className="mt-4 flex justify-between items-center">
               <p className="text-sm text-gray-700">
