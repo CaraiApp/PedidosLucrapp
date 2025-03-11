@@ -46,68 +46,86 @@ export default function PerfilUsuario() {
       setLoading(true);
       console.log("Cargando datos básicos del usuario...");
       
-      // 1. Obtener los datos básicos del usuario JUNTO con su membresía en una sola consulta
+      // 1. Cargar la información básica del usuario
       const { data: userData, error: userError } = await supabase
         .from("usuarios")
-        .select(`
-          *,
-          membresia_activa:membresias_usuarios(
-            id, 
-            tipo_membresia_id, 
-            fecha_inicio, 
-            fecha_fin, 
-            estado,
-            tipo_membresia:membresia_tipos(*)
-          )
-        `)
+        .select("*")
         .eq("id", userId)
         .single();
-        
+      
       if (userError) {
         console.error("Error al obtener usuario:", userError);
         throw userError;
       }
       
-      console.log("Datos obtenidos:", userData);
+      // 2. Cargar directamente la membresía activa (si existe)
+      // Esta consulta obtendrá el array de todas las membresías activas del usuario
+      const { data: membresiasData, error: membresiasError } = await supabase
+        .from("membresias_usuarios")
+        .select(`
+          id,
+          tipo_membresia_id,
+          fecha_inicio,
+          fecha_fin,
+          estado,
+          tipo_membresia:membresia_tipos(*)
+        `)
+        .eq("usuario_id", userId)
+        .eq("estado", "activa")
+        .order("fecha_inicio", { ascending: false });
       
-      // Preparar el objeto de membresía
-      let membresia;
+      if (membresiasError) {
+        console.error("Error al consultar membresías:", membresiasError);
+      }
       
-      // Procesar la membresía_activa (viene como array por ser una relación)
-      if (userData.membresia_activa && Array.isArray(userData.membresia_activa) && userData.membresia_activa.length > 0) {
-        // Tomar la primera membresía del array
-        membresia = userData.membresia_activa[0];
-        console.log("Membresía encontrada:", membresia);
+      // Procesamos membresía para el usuario
+      let membresia = null;
+      
+      // Verificar si se encontró una membresía activa
+      if (membresiasData && membresiasData.length > 0) {
+        // Usamos la membresía más reciente
+        membresia = membresiasData[0];
+        console.log("Membresía activa encontrada:", membresia);
       } else {
-        console.log("No se encontró membresía para el usuario");
+        console.log("No se encontró membresía activa para el usuario");
         
-        // Crear membresía gratuita por defecto
+        // Si no tiene membresía, obtenemos el plan gratuito para mostrar
         const { data: tipoGratuito } = await supabase
           .from("membresia_tipos")
           .select("*")
-          .eq("id", "13fae609-2679-47fa-9731-e2f1badc4a61") // ID fijo del plan gratuito
+          .eq("id", "13fae609-2679-47fa-9731-e2f1badc4a61") // ID del plan gratuito
           .single();
         
         if (tipoGratuito) {
           console.log("Usando plan gratuito predeterminado:", tipoGratuito);
           
+          // Crear una membresía temporal con el plan gratuito
           membresia = {
-            id: "default-free-plan",
+            id: "plan-gratuito-default",
             usuario_id: userId,
             tipo_membresia_id: tipoGratuito.id,
             fecha_inicio: new Date().toISOString(),
             fecha_fin: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-            estado: "activa",
+            estado: "activa", // No lo marcamos como temporal para no confundir
             tipo_membresia: tipoGratuito
           };
         }
       }
       
-      // Construir el objeto de usuario completo
+      // Construir objeto de usuario con la membresía
       const usuarioCompleto = {
         ...userData,
         membresia_activa: membresia
       };
+      
+      // Si la membresía no coincide con la referencia en el usuario, actualizarla
+      if (membresia && userData.membresia_activa_id !== membresia.id && membresia.id !== "plan-gratuito-default") {
+        console.log("Actualizando referencia de membresía en usuario...");
+        await supabase
+          .from("usuarios")
+          .update({ membresia_activa_id: membresia.id })
+          .eq("id", userId);
+      }
       
       setUsuario(usuarioCompleto);
     } catch (err) {
