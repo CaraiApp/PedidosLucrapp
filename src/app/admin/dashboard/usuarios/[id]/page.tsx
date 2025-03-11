@@ -70,18 +70,14 @@ export default function PerfilUsuario() {
       
       console.log("Datos obtenidos:", userData);
       
-      let usuarioCompleto = {...userData};
+      // Preparar el objeto de membresía
+      let membresia;
       
       // Procesar la membresía_activa (viene como array por ser una relación)
       if (userData.membresia_activa && Array.isArray(userData.membresia_activa) && userData.membresia_activa.length > 0) {
         // Tomar la primera membresía del array
-        const membresiaArray = userData.membresia_activa;
-        const membresia = membresiaArray[0];
-        
-        // Asignar la membresía directamente
-        usuarioCompleto.membresia_activa = membresia;
-        
-        console.log("Membresía asignada:", membresia);
+        membresia = userData.membresia_activa[0];
+        console.log("Membresía encontrada:", membresia);
       } else {
         console.log("No se encontró membresía para el usuario");
         
@@ -95,7 +91,7 @@ export default function PerfilUsuario() {
         if (tipoGratuito) {
           console.log("Usando plan gratuito predeterminado:", tipoGratuito);
           
-          usuarioCompleto.membresia_activa = {
+          membresia = {
             id: "default-free-plan",
             usuario_id: userId,
             tipo_membresia_id: tipoGratuito.id,
@@ -106,6 +102,12 @@ export default function PerfilUsuario() {
           };
         }
       }
+      
+      // Construir el objeto de usuario completo
+      const usuarioCompleto = {
+        ...userData,
+        membresia_activa: membresia
+      };
       
       setUsuario(usuarioCompleto);
     } catch (err) {
