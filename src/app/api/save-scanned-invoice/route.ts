@@ -143,7 +143,8 @@ export async function POST(request: NextRequest) {
         nombre: articulo.nombre,
         precio: articulo.precio || null,
         sku: articulo.sku || null,
-        descripcion: articulo.descripcion || null
+        descripcion: articulo.descripcion || null,
+        unidad_id: articulo.unidad_id || null // Añadir la unidad seleccionada
       }));
 
     if (nuevosArticulos.length > 0) {

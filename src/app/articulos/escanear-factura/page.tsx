@@ -40,6 +40,13 @@ interface Articulo {
   descripcion?: string;
   posiblesDuplicados?: any[];
   ignorar?: boolean;
+  unidad_id?: string; // Añadido para selección de unidad
+}
+
+interface Unidad {
+  id: string;
+  nombre: string;
+  abreviatura?: string;
 }
 
 interface DatosEscaneados {
@@ -63,6 +70,7 @@ function EscanerFactura() {
   const [datosEscaneados, setDatosEscaneados] = useState<DatosEscaneados | null>(null);
   const [proveedorExistente, setProveedorExistente] = useState<Proveedor | null>(null);
   const [proveedoresDisponibles, setProveedoresDisponibles] = useState<Proveedor[]>([]);
+  const [unidadesDisponibles, setUnidadesDisponibles] = useState<Unidad[]>([]);
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>("");
   const [guardando, setGuardando] = useState<boolean>(false);
   const [mostrandoCamara, setMostrandoCamara] = useState<boolean>(false);
@@ -113,19 +121,47 @@ function EscanerFactura() {
         
         // 2. Ya tenemos la sesión del usuario, usarla directamente
         if (session?.user?.id) {
-          // Si hay sesión activa, cargar proveedores reales
-          const { data: proveedores, error } = await supabase
+          // Cargar datos necesarios en paralelo (proveedores y unidades)
+          
+          // Cargar proveedores
+          const proveedoresPromise = supabase
             .from("proveedores")
             .select("id, nombre, cif, telefono, email, direccion")
             .eq("usuario_id", session.user.id)
             .order("nombre");
+          
+          // Cargar unidades de medida
+          const unidadesPromise = supabase
+            .from("unidades")
+            .select("id, nombre, abreviatura")
+            .order("nombre");
             
-          if (error) {
-            console.error("Error al consultar proveedores:", error);
+          // Esperar ambas consultas
+          const [proveedoresResult, unidadesResult] = await Promise.all([
+            proveedoresPromise,
+            unidadesPromise
+          ]);
+          
+          // Manejar resultados de proveedores
+          if (proveedoresResult.error) {
+            console.error("Error al consultar proveedores:", proveedoresResult.error);
+          } else if (proveedoresResult.data && proveedoresResult.data.length > 0) {
+            setProveedoresDisponibles(proveedoresResult.data);
           }
-            
-          if (proveedores && proveedores.length > 0) {
-            setProveedoresDisponibles(proveedores);
+          
+          // Manejar resultados de unidades
+          if (unidadesResult.error) {
+            console.error("Error al consultar unidades:", unidadesResult.error);
+          } else if (unidadesResult.data && unidadesResult.data.length > 0) {
+            setUnidadesDisponibles(unidadesResult.data);
+          } else {
+            // Si no hay unidades, crear un conjunto básico por defecto
+            const unidadesBasicas: Unidad[] = [
+              { id: 'unidad', nombre: 'Unidad', abreviatura: 'ud' },
+              { id: 'kg', nombre: 'Kilogramo', abreviatura: 'kg' },
+              { id: 'l', nombre: 'Litro', abreviatura: 'l' }
+            ];
+            setUnidadesDisponibles(unidadesBasicas);
           }
         } else {
           // Sin sesión activa
@@ -384,6 +420,29 @@ function EscanerFactura() {
     }
 
     try {
+      // Validar que todos los artículos no ignorados tengan unidad seleccionada
+      const articulosSinUnidad = datosEscaneados.articulos
+        .filter(art => !art.ignorar && !art.unidad_id);
+      
+      if (articulosSinUnidad.length > 0) {
+        setError(`Debes seleccionar una unidad de medida para todos los artículos. Faltan ${articulosSinUnidad.length} artículos.`);
+        
+        // Resaltar los artículos sin unidad (implementación básica)
+        const primerArticuloSinUnidad = datosEscaneados.articulos.findIndex(art => !art.ignorar && !art.unidad_id);
+        if (primerArticuloSinUnidad >= 0) {
+          // Hacer scroll al primer artículo sin unidad
+          const articulosTabla = document.querySelectorAll('tbody tr');
+          if (articulosTabla[primerArticuloSinUnidad]) {
+            articulosTabla[primerArticuloSinUnidad].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            articulosTabla[primerArticuloSinUnidad].classList.add('bg-yellow-100');
+            setTimeout(() => {
+              articulosTabla[primerArticuloSinUnidad].classList.remove('bg-yellow-100');
+            }, 3000);
+          }
+        }
+        return;
+      }
+
       setGuardando(true);
       setError(null);
 
@@ -418,6 +477,51 @@ function EscanerFactura() {
         
         // No redirigimos en modo prueba
         return;
+      }
+
+      // Verificar duplicados de cada artículo antes de guardar
+      const articulosVerificados = [];
+      const articulosDuplicadosEncontrados = [];
+      
+      // Obtenemos el ID del proveedor (existente o el que se creará)
+      const proveedorIdEfectivo = proveedorSeleccionado || 'nuevo';
+      
+      // Verificar cada artículo
+      for (const articulo of datosEscaneados.articulos) {
+        // Omitir artículos marcados para ignorar
+        if (articulo.ignorar) continue;
+        
+        // Verificar si el artículo ya existe en la base de datos
+        const duplicados = await comprobarArticuloExistente(
+          articulo.nombre, 
+          articulo.sku, 
+          proveedorSeleccionado
+        );
+        
+        if (duplicados && duplicados.length > 0) {
+          // Marcar artículo como duplicado
+          articulosDuplicadosEncontrados.push({
+            articulo: articulo,
+            duplicadoEnBD: duplicados[0]
+          });
+        }
+        
+        articulosVerificados.push({
+          ...articulo,
+          verificado: true
+        });
+      }
+      
+      // Si encontramos duplicados en la base de datos, preguntar al usuario
+      if (articulosDuplicadosEncontrados.length > 0) {
+        const confirmar = window.confirm(
+          `Se encontraron ${articulosDuplicadosEncontrados.length} artículos que parecen ya existir en tu catálogo. ¿Quieres continuar de todos modos? (Se crearán nuevamente)`
+        );
+        
+        if (!confirmar) {
+          setGuardando(false);
+          return;
+        }
       }
 
       // Si hay sesión, enviar a la API para guardar con el token y ID específico
@@ -474,6 +578,37 @@ function EscanerFactura() {
       ...datosEscaneados,
       articulos: nuevosArticulos
     });
+  };
+  
+  // Función para verificar si un artículo ya existe
+  const comprobarArticuloExistente = async (nombre: string, sku: string | undefined, proveedorId: string | undefined) => {
+    try {
+      let query = supabase
+        .from('articulos')
+        .select('*');
+        
+      // Filtrar por nombre similar
+      if (nombre) {
+        query = query.ilike('nombre', `%${nombre}%`);
+      }
+      
+      // O por SKU exacto (si existe)
+      if (sku && sku.trim() !== '') {
+        query = query.or(`sku.eq.${sku}`);
+      }
+      
+      // Si tenemos proveedor, filtrar también por él
+      if (proveedorId) {
+        query = query.eq('proveedor_id', proveedorId);
+      }
+      
+      const { data } = await query;
+      
+      return data && data.length > 0 ? data : null;
+    } catch (error) {
+      console.error('Error al comprobar artículo existente:', error);
+      return null;
+    }
   };
 
   const actualizarProveedor = (campo: string, valor: any) => {
@@ -950,6 +1085,9 @@ function EscanerFactura() {
                             Ref/SKU
                           </th>
                           <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Unidad
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Posibles Duplicados
                           </th>
                           <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center">
@@ -984,6 +1122,20 @@ function EscanerFactura() {
                                 onChange={(e) => actualizarArticulo(index, "sku", e.target.value)}
                                 className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                               />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <select
+                                value={articulo.unidad_id || ""}
+                                onChange={(e) => actualizarArticulo(index, "unidad_id", e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              >
+                                <option value="">Seleccionar unidad</option>
+                                {unidadesDisponibles.map(unidad => (
+                                  <option key={unidad.id} value={unidad.id}>
+                                    {unidad.nombre} {unidad.abreviatura ? `(${unidad.abreviatura})` : ''}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
                             <td className="px-6 py-4">
                               {articulo.posiblesDuplicados ? (
@@ -1067,6 +1219,24 @@ function EscanerFactura() {
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
                           </div>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
+                            Unidad de Medida
+                          </label>
+                          <select
+                            value={articulo.unidad_id || ""}
+                            onChange={(e) => actualizarArticulo(index, "unidad_id", e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                          >
+                            <option value="">Seleccionar unidad</option>
+                            {unidadesDisponibles.map(unidad => (
+                              <option key={unidad.id} value={unidad.id}>
+                                {unidad.nombre} {unidad.abreviatura ? `(${unidad.abreviatura})` : ''}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         
                         {articulo.posiblesDuplicados ? (
