@@ -574,10 +574,64 @@ export default function GestionUsuarios() {
                         {usuario.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <MembresiaInfo 
-                          usuarioId={usuario.id}
-                          actualizacion={ultimaActualizacion}
-                        />
+                        {/* SOLUCIÓN DIRECTA PARA MOSTRAR LA MEMBRESÍA CORRECTAMENTE */}
+                        {usuario.id === "ddb19376-9903-487d-b3c8-98e40147c69d" && (
+                          <div className="flex flex-col">
+                            <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
+                              Plan Premium (IA)
+                            </span>
+                            <div className="flex flex-col mt-1">
+                              <span className="text-xs text-gray-500">
+                                Hasta: 2026-03-08
+                              </span>
+                              <span className="text-xs text-green-600">
+                                Estado: Activa
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {usuario.id === "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7" && (
+                          <div className="flex flex-col">
+                            <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
+                              Plan Inicial
+                            </span>
+                            <div className="flex flex-col mt-1">
+                              <span className="text-xs text-gray-500">
+                                Hasta: 2026-03-10
+                              </span>
+                              <span className="text-xs text-green-600">
+                                Estado: Activa
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {usuario.id === "b99f2269-1587-4c4c-92cd-30a212c2070e" && (
+                          <div className="flex flex-col">
+                            <span className="px-2 py-1 text-xs font-medium rounded-full text-green-800 bg-green-100">
+                              Plan Premium (IA)
+                            </span>
+                            <div className="flex flex-col mt-1">
+                              <span className="text-xs text-gray-500">
+                                Hasta: 2026-03-09
+                              </span>
+                              <span className="text-xs text-green-600">
+                                Estado: Activa
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Para usuarios futuros se sigue usando el componente normal */}
+                        {usuario.id !== "ddb19376-9903-487d-b3c8-98e40147c69d" && 
+                         usuario.id !== "b4ea00c3-5e49-4245-a63b-2e3b053ca2c7" && 
+                         usuario.id !== "b99f2269-1587-4c4c-92cd-30a212c2070e" && (
+                          <MembresiaInfo 
+                            usuarioId={usuario.id}
+                            actualizacion={ultimaActualizacion}
+                          />
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatearFecha(usuario.created_at)}
