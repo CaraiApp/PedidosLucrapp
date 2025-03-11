@@ -147,49 +147,6 @@ export default function ProveedoresPage() {
           </div>
         </div>
         
-        {/* Guía de Uso */}
-        <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded shadow-sm">
-          <h2 className="text-lg font-semibold text-blue-800 mb-2">Gestión de Proveedores</h2>
-          <p className="text-sm text-blue-700 mb-2">
-            Aquí puedes gestionar todos tus proveedores. Un buen catálogo de proveedores es el primer paso para organizar tus compras de forma eficiente.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 text-sm">
-            <div className="bg-white p-3 rounded shadow-sm border border-blue-100">
-              <h3 className="font-medium text-blue-800 mb-1">1. Añadir Proveedores</h3>
-              <p className="text-gray-600">Comienza registrando todos tus proveedores habituales con sus datos de contacto para facilitar la comunicación.</p>
-            </div>
-            <div className="bg-white p-3 rounded shadow-sm border border-blue-100">
-              <h3 className="font-medium text-blue-800 mb-1">2. Organizar por Categorías</h3>
-              <p className="text-gray-600">Utiliza el campo de notas para categorizar tus proveedores (alimentos, bebidas, materiales, etc.).</p>
-            </div>
-            <div className="bg-white p-3 rounded shadow-sm border border-blue-100">
-              <h3 className="font-medium text-blue-800 mb-1">3. Añadir Productos</h3>
-              <p className="text-gray-600">Una vez creados los proveedores, podrás asignarles productos en la sección de Artículos.</p>
-            </div>
-          </div>
-          <button 
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium mt-2 flex items-center"
-            onClick={() => {
-              const guia = document.getElementById('guia-proveedores');
-              if (guia) guia.style.display = guia.style.display === 'none' ? 'block' : 'none';
-            }}
-          >
-            Ver más detalles
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-          <div id="guia-proveedores" className="mt-3 hidden">
-            <h3 className="font-medium text-blue-800 mb-1">Consejos para gestionar proveedores:</h3>
-            <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
-              <li>Registra información completa: teléfono, email, dirección y persona de contacto</li>
-              <li>Organiza tus proveedores por tipo/categoría para facilitar su búsqueda</li>
-              <li>Utiliza el campo de notas para añadir información sobre condiciones de pago, mínimos de pedido, etc.</li>
-              <li>Actualiza regularmente la información de contacto para mantenerla al día</li>
-              <li>Estandariza los nombres de tus proveedores para evitar duplicados</li>
-            </ul>
-          </div>
-        </div>
 
         {error && (
           <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -331,6 +288,65 @@ export default function ProveedoresPage() {
             ))}
           </div>
         )}
+        
+        {/* Guía de Uso (Desplegable en el pie de página) */}
+        <div className="mt-12">
+          <button 
+            className="w-full flex items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg shadow-sm transition-colors"
+            onClick={() => {
+              const guiaCompleta = document.getElementById('guia-completa-proveedores');
+              if (guiaCompleta) guiaCompleta.style.display = guiaCompleta.style.display === 'none' ? 'block' : 'none';
+            }}
+          >
+            <span className="text-blue-700 font-medium mr-2">¿Nuevo por aquí? Ver guía de uso</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+          
+          <div id="guia-completa-proveedores" className="mt-4 hidden bg-blue-50 border-l-4 border-blue-500 p-4 rounded shadow-sm">
+            <h2 className="text-lg font-semibold text-blue-800 mb-2">Gestión de Proveedores</h2>
+            <p className="text-sm text-blue-700 mb-2">
+              Aquí puedes gestionar todos tus proveedores. Un buen catálogo de proveedores es el primer paso para organizar tus compras de forma eficiente.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3 text-sm">
+              <div className="bg-white p-3 rounded shadow-sm border border-blue-100">
+                <h3 className="font-medium text-blue-800 mb-1">1. Añadir Proveedores</h3>
+                <p className="text-gray-600">Comienza registrando todos tus proveedores habituales con sus datos de contacto para facilitar la comunicación.</p>
+              </div>
+              <div className="bg-white p-3 rounded shadow-sm border border-blue-100">
+                <h3 className="font-medium text-blue-800 mb-1">2. Organizar por Categorías</h3>
+                <p className="text-gray-600">Utiliza el campo de notas para categorizar tus proveedores (alimentos, bebidas, materiales, etc.).</p>
+              </div>
+              <div className="bg-white p-3 rounded shadow-sm border border-blue-100">
+                <h3 className="font-medium text-blue-800 mb-1">3. Añadir Productos</h3>
+                <p className="text-gray-600">Una vez creados los proveedores, podrás asignarles productos en la sección de Artículos.</p>
+              </div>
+            </div>
+            <button 
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium mt-2 flex items-center"
+              onClick={() => {
+                const guia = document.getElementById('guia-proveedores');
+                if (guia) guia.style.display = guia.style.display === 'none' ? 'block' : 'none';
+              }}
+            >
+              Ver más detalles
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <div id="guia-proveedores" className="mt-3 hidden">
+              <h3 className="font-medium text-blue-800 mb-1">Consejos para gestionar proveedores:</h3>
+              <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
+                <li>Registra información completa: teléfono, email, dirección y persona de contacto</li>
+                <li>Organiza tus proveedores por tipo/categoría para facilitar su búsqueda</li>
+                <li>Utiliza el campo de notas para añadir información sobre condiciones de pago, mínimos de pedido, etc.</li>
+                <li>Actualiza regularmente la información de contacto para mantenerla al día</li>
+                <li>Estandariza los nombres de tus proveedores para evitar duplicados</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </AppLayout>
   );

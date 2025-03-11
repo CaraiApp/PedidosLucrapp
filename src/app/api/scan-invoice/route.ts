@@ -76,24 +76,31 @@ export async function POST(request: NextRequest) {
         },
       ];
 
-      // Añadir instrucciones
+      // Añadir instrucciones mejoradas
       messages[0].content.push({
         type: "text",
         text:
           "Analiza esta " +
           (isPdf ? "factura en PDF" : "imagen de una factura") +
-          " y extrae la siguiente información estructurada:\n\n" +
+          " y extrae la siguiente información estructurada con máxima precisión:\n\n" +
           "1. Información del proveedor:\n" +
-          "   - Nombre del proveedor\n" +
-          "   - CIF/NIF (generalmente comienza con una letra, seguida de 8 números, como B12345678, suele ir despuñes de las palabras CIF: y tienes que tener en cuenta que no sea el mismo que el cif de los datos de facturación de la cuenta. puede estar también en uno de los márgenes de la factura escrito de maenra vertical.)\n" +
-          "   - Dirección\n" +
-          "   - Teléfono\n" +
-          "   - Email\n\n" +
-          "2. Información de artículos/productos (para cada línea):\n" +
-          "   - Nombre del producto (Suele estar en la columna llamada, descripción, artículos o proeuctos)\n" +
-          "   - Cantidad no es relevante\n" +
-          "   - Precio unitario, normalmente en la columna de precio\n" +
-          "   - Referencia o código (si está disponible y normalmente en la columna ref., codigo, o regerencia)\n\n" +
+          "   - Nombre del proveedor (busca el nombre más prominente en la cabecera de la factura)\n" +
+          "   - CIF/NIF (generalmente comienza con una letra, seguida de 8 números, como B12345678. Suele aparecer como 'CIF:', 'NIF:', o cerca de los datos fiscales. Puede estar en los márgenes de la factura escrito vertical o horizontalmente)\n" +
+          "   - Dirección (busca la dirección completa incluyendo calle, número, código postal y ciudad)\n" +
+          "   - Teléfono (busca números de contacto, normalmente con formato 9XXXXXXXX o similar)\n" +
+          "   - Email (busca direcciones de correo electrónico, normalmente con formato xxx@xxx.xx)\n\n" +
+          "2. Información de artículos/productos:\n" +
+          "   - Nombre del producto: Busca en la sección central o cuerpo de la factura, normalmente en columnas tituladas 'Descripción', 'Artículo', 'Concepto', 'Producto' o 'Detalle'. Extrae el NOMBRE COMPLETO del artículo sin truncarlo.\n" +
+          "   - Precio unitario: Busca en columnas tituladas 'Precio', 'P.Unit', 'Importe unidad', '€/ud', o similar. Asegúrate de extraer el precio unitario, NO el precio total.\n" +
+          "   - Referencia/código/SKU: Busca en columnas tituladas 'Ref.', 'Código', 'SKU', 'Referencia' o al inicio de cada línea de producto.\n\n" +
+          "Instrucciones específicas para la extracción de artículos:\n" +
+          "- Identifica claramente la tabla o listado de productos en el documento\n" +
+          "- Asegúrate de capturar CADA LÍNEA de producto como un artículo separado\n" +
+          "- Si el nombre del producto está en varias líneas, unifícalo en una sola entrada\n" +
+          "- NO confundas totales, subtotales o resúmenes con artículos individuales\n" +
+          "- NO incluyas impuestos, gastos de envío o cargos adicionales como artículos\n" +
+          "- Extrae los precios SIN IVA cuando sea posible identificarlos\n" +
+          "- Si hay códigos de producto claramente identificables, inclúyelos en el campo 'sku'\n\n" +
           "Por favor, devuelve la información en formato JSON con la siguiente estructura:\n" +
           "{\n" +
           '  "proveedor": {\n' +
@@ -112,7 +119,7 @@ export async function POST(request: NextRequest) {
           "    }\n" +
           "  ]\n" +
           "}\n\n" +
-          "IMPORTANTE: Si no encuentras algún dato, déjalo como una cadena vacía o 0. Asegúrate de que el JSON sea válido. NO incluyas ningún texto adicional en tu respuesta, solo devuelve el JSON.",
+          "IMPORTANTE: Si no encuentras algún dato, déjalo como una cadena vacía o 0. Asegúrate de que el JSON sea válido. NO incluyas ningún texto adicional en tu respuesta, solo devuelve el JSON. Prioriza la MÁXIMA PRECISIÓN en la extracción de nombres y precios de los artículos.",
       });
 
       // Añadir el archivo (imagen o PDF) con el tipo correcto
@@ -235,24 +242,86 @@ async function processExtractedData(jsonData: any, userId: string) {
       );
     }
 
-    // Añadir información sobre posibles artículos duplicados
+    // Añadir información sobre posibles artículos duplicados con detección mejorada
     if (articulosExistentes?.length && jsonData.articulos) {
-      jsonData.articulos = jsonData.articulos.map((articulo: any) => {
-        const posiblesDuplicados = articulosExistentes.filter(
-          (a: any) =>
-            (articulo.nombre &&
-              a.nombre.toLowerCase().includes(articulo.nombre.toLowerCase())) ||
-            (articulo.sku &&
-              a.sku &&
-              a.sku.toLowerCase() === articulo.sku.toLowerCase())
-        );
+      // Filtrar artículos con información insuficiente o errónea
+      jsonData.articulos = jsonData.articulos
+        .filter((articulo: any) => {
+          // Verificar que el artículo tenga nombre y precio válido
+          const nombreValido = articulo.nombre && articulo.nombre.trim().length > 1; // Al menos 2 caracteres
+          const precioValido = articulo.precio && !isNaN(articulo.precio) && articulo.precio > 0;
+          
+          // Excluir líneas que claramente no son artículos (totales, subtotales, etc.)
+          const esNoArticulo = articulo.nombre && 
+            /^(total|subtotal|suma|base( imponible)?|iva|igic|impuesto|dto\.?|descuento|portes|gastos|env[ií]o)/i.test(articulo.nombre);
+          
+          return nombreValido && precioValido && !esNoArticulo;
+        })
+        .map((articulo: any) => {
+          // Mejorar la detección de duplicados usando algoritmos de similitud
+          const posiblesDuplicados = articulosExistentes.filter((a: any) => {
+            // Si hay coincidencia exacta de SKU, es un duplicado más probable
+            if (articulo.sku && a.sku && 
+               articulo.sku.toLowerCase() === a.sku.toLowerCase()) {
+              return true;
+            }
+            
+            // Si los nombres son idénticos o muy similares
+            if (articulo.nombre && a.nombre) {
+              const nombreArticulo = articulo.nombre.toLowerCase();
+              const nombreExistente = a.nombre.toLowerCase();
+              
+              // Coincidencia exacta
+              if (nombreArticulo === nombreExistente) {
+                return true;
+              }
+              
+              // Uno contiene al otro (para manejar variaciones en el nombre)
+              if (nombreArticulo.includes(nombreExistente) || 
+                  nombreExistente.includes(nombreArticulo)) {
+                return true;
+              }
+              
+              // Comparar palabras clave (para nombres que difieren en formato pero son el mismo producto)
+              const palabrasArticulo = nombreArticulo.split(/\s+/).filter(p => p.length > 3);
+              const palabrasExistente = nombreExistente.split(/\s+/).filter(p => p.length > 3);
+              
+              // Si comparten al menos 2 palabras clave, considerar como posible duplicado
+              let palabrasComunes = 0;
+              for (const palabra of palabrasArticulo) {
+                if (palabrasExistente.some(p => p.includes(palabra) || palabra.includes(p))) {
+                  palabrasComunes++;
+                }
+              }
+              
+              return palabrasComunes >= 2;
+            }
+            
+            return false;
+          });
+          
+          // Si encontramos un proveedor coincidente, asignar todos los productos de ese proveedor como posibles duplicados
+          const proveedorCoincidente = proveedorExistente ? proveedorExistente.id : null;
+          let duplicadosPorProveedor = [];
+          
+          if (proveedorCoincidente) {
+            duplicadosPorProveedor = articulosExistentes.filter(
+              a => a.proveedor_id === proveedorCoincidente && 
+                   a.nombre.toLowerCase().includes(articulo.nombre.substring(0, 5).toLowerCase())
+            );
+          }
+          
+          // Combinar ambas listas de duplicados y eliminar duplicados
+          const todosDuplicados = [...posiblesDuplicados, ...duplicadosPorProveedor];
+          const duplicadosUnicos = todosDuplicados.filter((item, index, self) => 
+            self.findIndex(t => t.id === item.id) === index
+          );
 
-        return {
-          ...articulo,
-          posiblesDuplicados:
-            posiblesDuplicados.length > 0 ? posiblesDuplicados : null,
-        };
-      });
+          return {
+            ...articulo,
+            posiblesDuplicados: duplicadosUnicos.length > 0 ? duplicadosUnicos : null,
+          };
+        });
     }
 
     // Devolver los datos procesados

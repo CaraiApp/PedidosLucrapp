@@ -599,15 +599,33 @@ function EscanerFactura() {
             
             {/* Consejos para mejores resultados */}
             {!imagenCapturada && !mostrandoCamara && (
-              <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-md">
-                <h3 className="text-md font-medium mb-1">Consejos para mejores resultados:</h3>
-                <ul className="list-disc list-inside text-sm">
-                  <li>Asegúrate de que la factura esté bien iluminada</li>
-                  <li>Evita sombras o reflejos sobre el documento</li>
-                  <li>Coloca la factura sobre una superficie plana</li>
-                  <li>Mantén la cámara paralela al documento</li>
-                  <li>Incluye todos los detalles importantes en la imagen</li>
-                </ul>
+              <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-md">
+                <h3 className="text-md font-medium mb-2">Consejos para mejores resultados:</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <h4 className="font-medium text-blue-800 text-sm mb-1">Para captura con cámara:</h4>
+                    <ul className="list-disc list-inside text-sm space-y-1">
+                      <li>Asegúrate de que la factura esté bien iluminada</li>
+                      <li>Evita sombras o reflejos sobre el documento</li>
+                      <li>Coloca la factura sobre una superficie plana</li>
+                      <li>Mantén la cámara paralela al documento</li>
+                      <li>Asegúrate de que todo el texto sea legible</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-blue-800 text-sm mb-1">Para mejor extracción de artículos:</h4>
+                    <ul className="list-disc list-inside text-sm space-y-1">
+                      <li>Los PDFs escaneados suelen ofrecer mejores resultados que fotos</li>
+                      <li>Asegúrate de que la tabla de productos sea visible completa</li>
+                      <li>Busca facturas con formato tabular claro</li>
+                      <li>Las fotos deben mostrar claramente las descripciones y precios</li>
+                      <li>Es normal tener que corregir algún precio o descripción manualmente</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="mt-3 pt-2 border-t border-blue-200">
+                  <p className="text-xs text-blue-700">Nota: El sistema ha sido mejorado para extraer con mayor precisión los nombres completos de los artículos y sus precios unitarios.</p>
+                </div>
               </div>
             )}
           </div>
@@ -619,6 +637,35 @@ function EscanerFactura() {
             <p className="text-center text-gray-600 mt-2">
               Este proceso puede tardar hasta 20-30 segundos dependiendo del tamaño del documento...
             </p>
+            <div className="mt-6 max-w-md mx-auto">
+              <h3 className="font-medium text-gray-800 mb-2">Optimizando la extracción de artículos:</h3>
+              <ul className="space-y-2 text-left text-sm">
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  <span>Identificando la tabla de productos en el documento</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  <span>Extrayendo nombres completos de productos</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  <span>Detectando precios unitarios sin IVA</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-indigo-500 mr-2 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  <span>Aplicando algoritmo mejorado para identificación de duplicados</span>
+                </li>
+              </ul>
+            </div>
           </div>
         )}
 
@@ -724,11 +771,30 @@ function EscanerFactura() {
             
             {/* Artículos */}
             <div>
-              <h3 className="text-md font-medium mb-3">Artículos Detectados</h3>
+              <div className="flex flex-wrap justify-between items-start mb-3">
+                <h3 className="text-md font-medium">Artículos Detectados</h3>
+                <span className="text-sm text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">
+                  {datosEscaneados.articulos.length} artículos encontrados
+                </span>
+              </div>
               
               {datosEscaneados.articulos.length === 0 ? (
                 <p className="text-gray-500">No se han detectado artículos en la factura.</p>
               ) : (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-yellow-700">
+                        Los nombres de artículos y precios se han extraído automáticamente. Verifica y corrige si es necesario para asegurar datos precisos.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 <>
                   {/* Tabla para pantallas medianas y grandes */}
                   <div className="hidden md:block overflow-x-auto">
