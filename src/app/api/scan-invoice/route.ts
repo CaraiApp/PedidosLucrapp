@@ -242,7 +242,7 @@ async function processExtractedData(jsonData: any, userId: string) {
       );
     }
 
-    // Añadir información sobre posibles artículos duplicados con detección mejorada
+    // Añadir información sobre posibles artículos duplicados con detección reforzada
     if (articulosExistentes?.length && jsonData.articulos) {
       // Filtrar artículos con información insuficiente o errónea
       jsonData.articulos = jsonData.articulos
@@ -258,68 +258,162 @@ async function processExtractedData(jsonData: any, userId: string) {
           return nombreValido && precioValido && !esNoArticulo;
         })
         .map((articulo: any) => {
-          // Mejorar la detección de duplicados usando algoritmos de similitud
-          const posiblesDuplicados = articulosExistentes.filter((a: any) => {
-            // Si hay coincidencia exacta de SKU, es un duplicado más probable
-            if (articulo.sku && a.sku && 
-               articulo.sku.toLowerCase() === a.sku.toLowerCase()) {
-              return true;
-            }
+          // SISTEMA MEJORADO DE DETECCIÓN DE DUPLICADOS
+          
+          // Array para almacenar duplicados con nivel de confianza
+          const duplicadosConConfianza = [];
+          
+          // 1. COINCIDENCIA POR REFERENCIA/SKU (Confianza Alta - 0.95)
+          if (articulo.sku && articulo.sku.trim() !== '') {
+            const skuNormalizado = articulo.sku.toLowerCase().trim().replace(/[-\s.,;]/g, '');
             
-            // Si los nombres son idénticos o muy similares
-            if (articulo.nombre && a.nombre) {
-              const nombreArticulo = articulo.nombre.toLowerCase();
-              const nombreExistente = a.nombre.toLowerCase();
-              
-              // Coincidencia exacta
-              if (nombreArticulo === nombreExistente) {
-                return true;
-              }
-              
-              // Uno contiene al otro (para manejar variaciones en el nombre)
-              if (nombreArticulo.includes(nombreExistente) || 
-                  nombreExistente.includes(nombreArticulo)) {
-                return true;
-              }
-              
-              // Comparar palabras clave (para nombres que difieren en formato pero son el mismo producto)
-              const palabrasArticulo = nombreArticulo.split(/\s+/).filter(p => p.length > 3);
-              const palabrasExistente = nombreExistente.split(/\s+/).filter(p => p.length > 3);
-              
-              // Si comparten al menos 2 palabras clave, considerar como posible duplicado
-              let palabrasComunes = 0;
-              for (const palabra of palabrasArticulo) {
-                if (palabrasExistente.some(p => p.includes(palabra) || palabra.includes(p))) {
-                  palabrasComunes++;
+            // Búsqueda exacta de SKU
+            articulosExistentes.forEach(a => {
+              if (a.sku && a.sku.trim() !== '') {
+                const existenteSkuNormalizado = a.sku.toLowerCase().trim().replace(/[-\s.,;]/g, '');
+                
+                // Coincidencia exacta de SKU o código de referencia
+                if (skuNormalizado === existenteSkuNormalizado) {
+                  duplicadosConConfianza.push({
+                    articulo: a,
+                    confianza: 0.95,
+                    razon: 'Coincidencia exacta de referencia/SKU'
+                  });
                 }
               }
-              
-              return palabrasComunes >= 2;
-            }
-            
-            return false;
-          });
-          
-          // Si encontramos un proveedor coincidente, asignar todos los productos de ese proveedor como posibles duplicados
-          const proveedorCoincidente = proveedorExistente ? proveedorExistente.id : null;
-          let duplicadosPorProveedor = [];
-          
-          if (proveedorCoincidente) {
-            duplicadosPorProveedor = articulosExistentes.filter(
-              a => a.proveedor_id === proveedorCoincidente && 
-                   a.nombre.toLowerCase().includes(articulo.nombre.substring(0, 5).toLowerCase())
-            );
+            });
           }
           
-          // Combinar ambas listas de duplicados y eliminar duplicados
-          const todosDuplicados = [...posiblesDuplicados, ...duplicadosPorProveedor];
-          const duplicadosUnicos = todosDuplicados.filter((item, index, self) => 
-            self.findIndex(t => t.id === item.id) === index
-          );
+          // 2. COINCIDENCIA EXACTA DE NOMBRE (Confianza Alta - 0.9)
+          if (articulo.nombre && articulo.nombre.trim() !== '') {
+            const nombreNormalizado = articulo.nombre.toLowerCase().trim();
+            
+            articulosExistentes.forEach(a => {
+              // Si ya está en la lista por coincidencia de SKU, omitir
+              if (duplicadosConConfianza.some(d => d.articulo.id === a.id && d.confianza >= 0.9)) {
+                return;
+              }
+              
+              if (a.nombre && a.nombre.trim() !== '') {
+                const existenteNombreNormalizado = a.nombre.toLowerCase().trim();
+                
+                // Coincidencia exacta de nombre
+                if (nombreNormalizado === existenteNombreNormalizado) {
+                  duplicadosConConfianza.push({
+                    articulo: a,
+                    confianza: 0.9,
+                    razon: 'Coincidencia exacta de nombre'
+                  });
+                }
+              }
+            });
+          }
+          
+          // 3. COINCIDENCIA POR INCLUSIÓN DE NOMBRE (Confianza Media - 0.75)
+          if (articulo.nombre && articulo.nombre.trim() !== '') {
+            const nombreNormalizado = articulo.nombre.toLowerCase().trim();
+            
+            articulosExistentes.forEach(a => {
+              // Si ya está en la lista con alta confianza, omitir
+              if (duplicadosConConfianza.some(d => d.articulo.id === a.id && d.confianza >= 0.75)) {
+                return;
+              }
+              
+              if (a.nombre && a.nombre.trim() !== '') {
+                const existenteNombreNormalizado = a.nombre.toLowerCase().trim();
+                
+                // Uno contiene al otro (A contiene B o B contiene A)
+                if (nombreNormalizado.includes(existenteNombreNormalizado) || 
+                    existenteNombreNormalizado.includes(nombreNormalizado)) {
+                  duplicadosConConfianza.push({
+                    articulo: a,
+                    confianza: 0.75,
+                    razon: 'Un nombre contiene al otro'
+                  });
+                }
+              }
+            });
+          }
+          
+          // 4. COINCIDENCIA POR PALABRAS CLAVE (Confianza Media-Baja - 0.6)
+          if (articulo.nombre && articulo.nombre.trim() !== '') {
+            const nombreNormalizado = articulo.nombre.toLowerCase().trim();
+            // Extraer palabras significativas (más de 3 caracteres)
+            const palabrasArticulo = nombreNormalizado.split(/\s+/).filter(p => p.length > 3);
+            
+            if (palabrasArticulo.length > 0) {
+              articulosExistentes.forEach(a => {
+                // Si ya está en la lista con confianza media o alta, omitir
+                if (duplicadosConConfianza.some(d => d.articulo.id === a.id && d.confianza >= 0.6)) {
+                  return;
+                }
+                
+                if (a.nombre && a.nombre.trim() !== '') {
+                  const existenteNombreNormalizado = a.nombre.toLowerCase().trim();
+                  const palabrasExistente = existenteNombreNormalizado.split(/\s+/).filter(p => p.length > 3);
+                  
+                  // Contar palabras coincidentes
+                  let palabrasComunes = 0;
+                  for (const palabra of palabrasArticulo) {
+                    if (palabrasExistente.some(p => p.includes(palabra) || palabra.includes(p))) {
+                      palabrasComunes++;
+                    }
+                  }
+                  
+                  // Si comparten al menos 2 palabras clave o más del 50% de las palabras
+                  const umbralPalabras = Math.min(2, Math.ceil(palabrasArticulo.length * 0.5));
+                  if (palabrasComunes >= umbralPalabras) {
+                    duplicadosConConfianza.push({
+                      articulo: a,
+                      confianza: 0.6,
+                      razon: `Comparten ${palabrasComunes} palabras clave`,
+                      palabrasComunes
+                    });
+                  }
+                }
+              });
+            }
+          }
+          
+          // 5. COINCIDENCIA POR PROVEEDOR Y NOMBRE PARCIAL (Confianza Baja - 0.4)
+          if (proveedorExistente && articulo.nombre && articulo.nombre.trim() !== '') {
+            const inicioNombre = articulo.nombre.substring(0, 
+                Math.min(5, articulo.nombre.length)).toLowerCase();
+            
+            articulosExistentes.forEach(a => {
+              // Si ya está en la lista con cualquier nivel de confianza, omitir
+              if (duplicadosConConfianza.some(d => d.articulo.id === a.id)) {
+                return;
+              }
+              
+              // Si es del mismo proveedor y el inicio del nombre coincide
+              if (a.proveedor_id === proveedorExistente.id && 
+                  a.nombre && 
+                  a.nombre.toLowerCase().includes(inicioNombre)) {
+                duplicadosConConfianza.push({
+                  articulo: a,
+                  confianza: 0.4,
+                  razon: 'Mismo proveedor y nombre parcialmente coincidente'
+                });
+              }
+            });
+          }
+          
+          // Ordenar duplicados por nivel de confianza (de mayor a menor)
+          duplicadosConConfianza.sort((a, b) => b.confianza - a.confianza);
+          
+          // Convertir a formato esperado (solo los artículos, sin info de confianza)
+          const duplicadosUnicos = duplicadosConConfianza.map(d => ({
+            ...d.articulo,
+            nivelConfianza: d.confianza,
+            razonDuplicado: d.razon
+          }));
 
           return {
             ...articulo,
             posiblesDuplicados: duplicadosUnicos.length > 0 ? duplicadosUnicos : null,
+            // Añadir flag si hay duplicados con alta confianza (>0.75)
+            tieneDuplicadosAltaConfianza: duplicadosUnicos.some(d => d.nivelConfianza >= 0.75)
           };
         });
     }

@@ -497,6 +497,15 @@ function EscanerFactura() {
     setProveedorExistente(null);
     setProveedorSeleccionado("");
   };
+  
+  // Función para renderizar el nivel de confianza de forma legible
+  const renderConfianza = (valor: number): string => {
+    if (valor >= 0.9) return "Alta";
+    if (valor >= 0.7) return "Media-Alta";
+    if (valor >= 0.5) return "Media";
+    if (valor >= 0.3) return "Media-Baja";
+    return "Baja";
+  };
 
   return (
     <AppLayout>
@@ -593,13 +602,12 @@ function EscanerFactura() {
           
             {/* Previsualización de la cámara a pantalla completa */}
             {mostrandoCamara && (
-              <div className="fixed inset-0 z-50 bg-black flex flex-col">
-                {/* Cabecera con título */}
-                <div className="bg-black bg-opacity-75 text-white p-4 flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Escanear Factura</h3>
+              <div className="fixed inset-0 z-50 flex flex-col">
+                {/* Cabecera con botón de cierre */}
+                <div className="absolute top-4 right-4 z-10">
                   <button 
                     onClick={detenerCamara}
-                    className="text-white focus:outline-none"
+                    className="bg-white bg-opacity-75 text-gray-800 rounded-full p-2 shadow-md focus:outline-none"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -607,7 +615,7 @@ function EscanerFactura() {
                   </button>
                 </div>
                 
-                {/* Video de la cámara a pantalla completa */}
+                {/* Video de la cámara a pantalla completa sin guías */}
                 <div className="flex-grow relative">
                   <video 
                     ref={videoRef} 
@@ -615,14 +623,6 @@ function EscanerFactura() {
                     playsInline 
                     className="absolute inset-0 w-full h-full object-cover"
                   />
-                  
-                  {/* Guías de orientación para la factura */}
-                  <div className="absolute inset-0 pointer-events-none border-4 border-white border-opacity-30 m-8"></div>
-                  
-                  {/* Indicaciones */}
-                  <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white text-sm px-4 py-2 rounded-full">
-                    Alinea la factura dentro del marco
-                  </div>
                 </div>
                 
                 {/* Controles inferiores */}
@@ -987,11 +987,22 @@ function EscanerFactura() {
                             </td>
                             <td className="px-6 py-4">
                               {articulo.posiblesDuplicados ? (
-                                <div className="text-amber-600 text-sm">
-                                  <p className="font-medium">Posibles duplicados:</p>
+                                <div className={articulo.tieneDuplicadosAltaConfianza ? "text-red-600 text-sm" : "text-amber-600 text-sm"}>
+                                  <p className="font-medium">
+                                    {articulo.tieneDuplicadosAltaConfianza ? 
+                                      "⚠️ Duplicado detectado:" : 
+                                      "Posibles duplicados:"}
+                                  </p>
                                   <ul className="list-disc list-inside">
                                     {articulo.posiblesDuplicados.map((dup: any) => (
-                                      <li key={dup.id}>{dup.nombre}</li>
+                                      <li key={dup.id} className="mb-1">
+                                        <span className="font-medium">{dup.nombre}</span>
+                                        {dup.nivelConfianza && (
+                                          <span className="ml-1 text-xs">
+                                            ({renderConfianza(dup.nivelConfianza)}: {dup.razonDuplicado})
+                                          </span>
+                                        )}
+                                      </li>
                                     ))}
                                   </ul>
                                 </div>
@@ -1061,12 +1072,23 @@ function EscanerFactura() {
                         {articulo.posiblesDuplicados ? (
                           <div className="mb-3">
                             <label className="block text-xs font-medium text-gray-500 uppercase mb-1">
-                              Posibles Duplicados
+                              {articulo.tieneDuplicadosAltaConfianza ? "⚠️ Duplicado Detectado" : "Posibles Duplicados"}
                             </label>
-                            <div className="text-amber-600 text-sm bg-amber-50 p-2 rounded-md">
-                              <ul className="list-disc list-inside">
+                            <div className={`text-sm p-2 rounded-md ${articulo.tieneDuplicadosAltaConfianza ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
+                              <ul className="list-disc list-inside space-y-1">
                                 {articulo.posiblesDuplicados.map((dup: any) => (
-                                  <li key={dup.id}>{dup.nombre}</li>
+                                  <li key={dup.id} className="leading-tight">
+                                    <span className="font-medium">{dup.nombre}</span>
+                                    {dup.nivelConfianza && (
+                                      <div className="text-xs ml-4 mt-1 mb-2">
+                                        <span className="inline-block px-2 py-1 rounded bg-white bg-opacity-50">
+                                          Confianza: {renderConfianza(dup.nivelConfianza)}
+                                        </span>
+                                        <br />
+                                        <span>{dup.razonDuplicado}</span>
+                                      </div>
+                                    )}
+                                  </li>
                                 ))}
                               </ul>
                             </div>
