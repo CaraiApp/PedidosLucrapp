@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from "@/lib/supabase";
 import { cookies } from 'next/headers';
 
+// Añadida la capacidad de especificar un ID de usuario en la consulta
 export async function GET(request: NextRequest) {
+  // Verificar si hay un parámetro userId en la URL
+  const { searchParams } = new URL(request.url);
+  const requestedUserId = searchParams.get('userId');
   try {
     // Usar cookies para mejorar la detección de sesión
     const cookieStore = cookies();
@@ -17,9 +21,11 @@ export async function GET(request: NextRequest) {
     console.log("Sesión detectada:", !!sessionData?.session);
     console.log("Error de sesión:", sessionError?.message || "Ninguno");
     
-    // Usar un ID por defecto para testing si no hay sesión
-    const userId = sessionData?.session?.user?.id || "def38ca4-63a6-4ce1-8dbd-32abda08a14c";
+    // Usar el ID solicitado o uno por defecto para testing si no hay sesión
+    const userId = requestedUserId || sessionData?.session?.user?.id || "def38ca4-63a6-4ce1-8dbd-32abda08a14c";
     const userEmail = sessionData?.session?.user?.email || "luiscrouseillesvillena@gmail.com";
+    
+    console.log("Usando ID para diagnóstico:", userId);
     
     // 1. Verificar la tabla de usuarios
     const { data: userData, error: userError } = await supabase

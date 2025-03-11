@@ -167,6 +167,21 @@ export default function DebugMembershipPage() {
             >
               {updating ? "Actualizando..." : "Actualizar a Premium"}
             </button>
+            <Link href={`/api/debug-membership?userId=ddb19376-9903-487d-b3c8-98e40147c69d`} target="_blank">
+              <button className="ml-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                Ver Usuario 1
+              </button>
+            </Link>
+            <Link href={`/api/debug-membership?userId=b4ea00c3-5e49-4245-a63b-2e3b053ca2c7`} target="_blank">
+              <button className="ml-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                Ver Usuario 2
+              </button>
+            </Link>
+            <Link href={`/api/debug-membership?userId=b99f2269-1587-4c4c-92cd-30a212c2070e`} target="_blank">
+              <button className="ml-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                Ver Usuario 3
+              </button>
+            </Link>
           </div>
         </div>
         
