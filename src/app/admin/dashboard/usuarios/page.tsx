@@ -29,7 +29,7 @@ export default function GestionUsuarios() {
   const [actualizando, setActualizando] = useState(false);
   const itemsPerPage = 10;
   
-  // Datos hardcoded para usuarios específicos
+  // Datos hardcoded para usuarios especificos
   const USUARIOS_ESPECIALES: Record<string, any> = {
     "ddb19376-9903-487d-b3c8-98e40147c69d": {
       membresia: {
