@@ -29,6 +29,8 @@ export default function NuevaListaCompraPage() {
   const [limiteAlcanzado, setLimiteAlcanzado] = useState(false);
   const [expandedArticulos, setExpandedArticulos] = useState<Record<string, boolean>>({});
   const [expandedCantidades, setExpandedCantidades] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [filteredProveedores, setFilteredProveedores] = useState<ProveedorConArticulos[]>([]);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -130,6 +132,7 @@ export default function NuevaListaCompraPage() {
         }
 
         setProveedores(proveedoresConArticulos);
+        setFilteredProveedores(proveedoresConArticulos);
       } catch (err: any) {
         console.error("Error al cargar datos:", err.message);
         setError("No se pudieron cargar los datos. Por favor, intenta nuevamente.");
@@ -140,6 +143,35 @@ export default function NuevaListaCompraPage() {
 
     cargarDatos();
   }, [router]); // Quitamos nextListaId de las dependencias para evitar bucles
+  
+  // Efecto para filtrar proveedores y artículos cuando cambia el término de búsqueda
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredProveedores(proveedores);
+      return;
+    }
+    
+    const searchTermLower = searchTerm.toLowerCase();
+    
+    const filtered = proveedores.map(proveedor => {
+      // Filtrar artículos que coincidan con la búsqueda
+      const filteredArticulos = proveedor.articulos.filter(articulo => 
+        articulo.nombre.toLowerCase().includes(searchTermLower) ||
+        (articulo.descripcion && articulo.descripcion.toLowerCase().includes(searchTermLower))
+      );
+      
+      // Solo retornar proveedores que tengan artículos coincidentes
+      if (filteredArticulos.length > 0) {
+        return {
+          ...proveedor,
+          articulos: filteredArticulos
+        };
+      }
+      return null;
+    }).filter(Boolean) as ProveedorConArticulos[];
+    
+    setFilteredProveedores(filtered);
+  }, [searchTerm, proveedores]);
 
   const toggleArticuloExpanded = (articuloId: string) => {
     setExpandedArticulos(prev => ({
@@ -360,6 +392,37 @@ export default function NuevaListaCompraPage() {
               placeholder="Notas adicionales para esta lista"
             />
           </div>
+          
+          <div className="mb-2">
+            <label htmlFor="buscar" className="block text-sm font-medium text-gray-700 mb-1">
+              Buscar artículos
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </div>
+              <input
+                type="text"
+                id="buscar"
+                className="w-full pl-10 p-2 border border-gray-300 rounded-md"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre o descripción"
+              />
+              {searchTerm && (
+                <button 
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setSearchTerm("")}
+                >
+                  <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {loading ? (
@@ -378,10 +441,22 @@ export default function NuevaListaCompraPage() {
               Añade tu primer proveedor
             </Link>
           </div>
+        ) : filteredProveedores.length === 0 && searchTerm ? (
+          <div className="bg-white shadow rounded-lg p-6 text-center">
+            <p className="text-gray-500 mb-4">
+              No se encontraron artículos que coincidan con "{searchTerm}".
+            </p>
+            <button 
+              onClick={() => setSearchTerm("")}
+              className="text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              Mostrar todos los artículos
+            </button>
+          </div>
         ) : (
           <>
             <div className="space-y-6">
-              {proveedores.map((proveedor) => (
+              {filteredProveedores.map((proveedor) => (
                 <div key={proveedor.id} className="bg-white shadow rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-6 py-4 border-b">
                     <h2 className="text-xl font-semibold text-gray-800">{proveedor.nombre}</h2>
